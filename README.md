@@ -84,7 +84,8 @@ sequenceDiagram
     C->>RC: fund()
     RC->>H: beforeAction(fund) — check config is set
     RC->>ESC: fund() — pulls total from C into escrow
-    H->>A: transferFrom(referralAmount) — pulls from A into hook
+    RC->>H: afterAction(fund)
+    H->>H: transferFrom(A, hook, referralAmount) — A's tokens move into hook vault
 
     note over A,H: Phase 4 — Execution
 
