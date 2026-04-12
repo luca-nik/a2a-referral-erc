@@ -66,41 +66,41 @@ sequenceDiagram
 
     note over A,H: Phase 1 — Agreement
 
-    B->>RC: proposeCoordination(ReferralTerms)
+    B->>RC: proposeCoordination(provider=A, referrer=B, client=C, rate, evaluator, hook)
     A->>RC: acceptCoordination()
     C->>RC: acceptCoordination()
 
     note over A,H: Phase 2 — Job creation & price negotiation
 
     RC->>ESC: createJob(provider=A, evaluator=E, hook=H)
-    A->>RC: setBudget(amount, referralTerms)
-    RC->>H: beforeAction(setBudget) — validate & store referral config
+    A->>RC: setBudget(amount, optParams: referrer=B, rateBps)
+    RC->>H: beforeAction(setBudget) — verify terms match signed coordination, store referral config
     RC->>ESC: setBudget(amount)
 
-    note over A,H: Phase 3 — Funding (atomic)
+    note over A,H: Phase 3 — Funding (atomic, single transaction)
 
-    A->>H: approve(referralAmount)
-    C->>ESC: approve(total)
+    A->>H: approve referralAmount (= amount × rateBps / 10000)
+    C->>ESC: approve total (= full job price)
     C->>RC: fund()
-    RC->>H: beforeAction(fund) — check config is set
-    RC->>ESC: fund() — pulls total from C into escrow
-    RC->>H: afterAction(fund)
-    A->>H: referralAmount — deposited into hook vault
+    RC->>H: beforeAction(fund) — revert if no referral config stored
+    RC->>ESC: fund() — escrow pulls total from C
+    RC->>H: afterAction(fund) — hook pulls referral fee from A
+    A->>H: referralAmount transferred into hook vault
 
-    note over A,H: Phase 4 — Execution
+    note over A,H: Phase 4 — Execution & settlement
 
     A->>ESC: submit(deliverable)
     E->>ESC: complete() or reject()
 
     alt Approved
-        ESC->>A: pay total
-        H->>B: pay referralAmount
+        ESC->>A: release total
+        H->>B: release referralAmount (A nets total − referralAmount)
     else Rejected
         ESC->>C: refund total
         H->>A: refund referralAmount
     else Expired
-        C->>ESC: claimRefund() → refund total
-        A->>H: recoverReferralFee() → refund referralAmount
+        C->>ESC: claimRefund() — escrow refunds total to C
+        A->>H: recoverReferralFee() — hook refunds referralAmount to A
     end
 ```
 
