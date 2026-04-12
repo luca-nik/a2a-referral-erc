@@ -84,8 +84,8 @@ sequenceDiagram
     C->>RC: fund()
     RC->>H: beforeAction(fund) — revert if no referral config stored
     RC->>ESC: fund() — escrow pulls total from C
-    RC->>H: afterAction(fund) — hook pulls referral fee from A
-    A->>H: referralAmount transferred into hook vault
+    RC->>H: afterAction(fund) — called automatically by ERC-8183 after escrow pull, triggers referral amount pull
+    A->>H: referralAmount pulled into hook vault via transferFrom (approved above)
 
     note over A,H: Phase 4 — Execution & settlement
 
