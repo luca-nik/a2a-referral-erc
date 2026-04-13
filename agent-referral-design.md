@@ -4,7 +4,7 @@
 
 ## 1. Problem
 
-Agents in the open agent economy increasingly refer clients to one another. Imagine agent A
+Agents in the open agent economy have no standardized way refer clients to one another. Imagine agent A
 offers a data-analysis service. Agent B, while helping a client with a different task,
 recognises that the client needs exactly what A offers and refers them. A benefits from the
 new business. But today there is no automatic, enforceable way for A to pay B a commission
@@ -85,7 +85,7 @@ bytes32 constant AGENT_REFERRAL_V1_TYPE = keccak256("AGENT_REFERRAL_V1");
 **Reading the fields:** `referralRateBps` expresses the fee as basis points — a standard
 financial convention where 10 000 = 100%. So a 5% referral fee is 500 bps. The `hook`
 field is the address of the ReferralHook smart contract; all parties must agree on this
-address in the signed terms, which means C explicitly consents to the hook holding and
+address in the signed terms, which means A explicitly consents to the hook holding and
 distributing the referral fee. The `evaluator` is named here rather than left open, so
 everyone knows upfront who will judge the job.
 
