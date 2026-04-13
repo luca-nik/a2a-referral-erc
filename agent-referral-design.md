@@ -459,19 +459,7 @@ A robust system must be safe even when things go wrong. Here are the cases and r
 
 ---
 
-## 10. Out of scope / future work
-
-The following are deliberately excluded from v1 to keep the design simple and auditable.
-They may be addressed in later revisions:
-
-- Multi-job referrals from one signed intent (would require replay counters).
-- Late-bound or rotating evaluator.
-- Multi-level referral chains (B referred by a C, etc.).
-- Alternate payout curves (non-linear splits, caps, vesting).
-
----
-
-## 11. Constraints (v1 assumptions)
+## 10. Constraints
 
 These are deliberate simplifications. Each could be relaxed in a later revision.
 
@@ -487,7 +475,7 @@ These are deliberate simplifications. Each could be relaxed in a later revision.
 
 ---
 
-## 12. Generality of the approach
+## 11. Generality of the approach
 
 The pattern described here — an ERC-8001 coordination naming a hook and an evaluator, with
 the hook serving as the ERC-8183 provider and routing a payment split on completion — is
@@ -498,7 +486,7 @@ untouched in all such cases.
 
 ---
 
-## 13. Suggested improvements to base ERCs (non-normative)
+## 12. Suggested improvements to base ERCs (non-normative)
 
 These are observations about limitations in the underlying standards that this ERC works
 around. They are not required for this ERC to function, but addressing them would simplify
@@ -507,7 +495,7 @@ two proxy layers — one on the client side (`ReferralCoordination` for C) and o
 provider side (`ReferralHook` for A) — both arising from the same root cause: ERC-8183
 uses `msg.sender` to determine client and provider identity at key lifecycle points.
 
-### 13.1 `createJobFor` in ERC-8183 (eliminates the client-side proxy)
+### 12.1 `createJobFor` in ERC-8183 (eliminates the client-side proxy)
 
 Today `createJob` sets `client = msg.sender`, meaning the contract that calls `createJob`
 is permanently recorded as the client. In any composable system where a third contract
@@ -522,7 +510,7 @@ as the client, and C interacts with ERC-8183 directly from that point. This is a
 composability issue, not specific to referrals: any protocol that wraps ERC-8183 job
 creation faces the same problem.
 
-### 13.2 Native payment split on `complete` in ERC-8183 (eliminates the provider-side proxy)
+### 12.2 Native payment split on `complete` in ERC-8183 (eliminates the provider-side proxy)
 
 Today `complete` pays the full budget to `job.provider`. In this ERC, we work around this
 by setting `job.provider = ReferralHook` and having `ReferralHook` distribute the payment
@@ -537,7 +525,7 @@ escrow itself, with no proxy provider needed. A would be recorded as `job.provid
 interact with the escrow directly; the referral fee would flow to B as part of the
 `complete` distribution without any hook logic or intermediate contract.
 
-### 13.3 Combined effect
+### 12.3 Combined effect
 
 If both improvements were adopted:
 
@@ -551,14 +539,3 @@ and job creation only) and `ReferralHook` would shrink to a pure policy hook (te
 verification only, no token custody). The composability gain would apply to any protocol
 layered on top of ERC-8183, not just referrals.
 
-### 13.4 Late-bound evaluator in ERC-8183
-
-A guarded `setEvaluator` function (callable only before funding) would allow the evaluator
-to be chosen after the job is created but before funds are locked. The current spec requires
-evaluator at creation; this ERC mirrors that constraint.
-
-### 13.5 Standardise `referralRateBps` and `tag1="referral"` in ERC-8004
-
-Formalising these conventions directly in ERC-8004 would make referral-rate discovery and
-reputation filtering composable across any ERC-8004 consumer, rather than each downstream
-ERC defining its own conventions.
