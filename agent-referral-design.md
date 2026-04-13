@@ -125,12 +125,18 @@ bytes32 constant AGENT_REFERRAL_V1_TYPE = keccak256("AGENT_REFERRAL_V1");
 
 `CoordinationPayload.coordinationData = abi.encode(ReferralTerms)`
 
-`referralRateBps` expresses the fee as basis points — a standard
+**Reading the fields:** `referralRateBps` expresses the fee as basis points — a standard
 financial convention where 10 000 = 100%. So a 5% referral fee is 500 bps. The `hook`
 field is the address of the ReferralHook smart contract; all parties must agree on this
 address in the signed terms, which means C explicitly consents to the hook being the
 recorded ERC-8183 provider and handling the split. The `evaluator` is named here rather
 than left open, so everyone knows upfront who will judge the job.
+
+`ReferralCoordination` MUST verify that `terms.provider`, `terms.referrer`, and
+`terms.client` are exactly the three addresses in `intent.participants`. Any of the three
+may be the proposer (`intent.agentId`); the referrer is always identified by `terms.referrer`
+regardless of who initiates the coordination. B's consent is proven by their acceptance
+signature as a named participant, not by being the proposer.
 
 ---
 
@@ -349,25 +355,22 @@ job creation. Only `ReferralCoordination` may call `configureJob`.
 
 **Hook callbacks and their purpose:**
 
-- `beforeAction(setBudget)` — cross-checks the call against the stored referral config for
-  this job. Reverts if the config has not been registered yet (i.e. `configureJob` was never
-  called). The hook SHOULD emit an event with the computed `referralAmount =
-  amount * rateBps / 10_000` so A and C know the exact split at the current price.
+- `beforeAction(fund)` — a lightweight guard: MUST revert if `referralConfig[jobId]` has
+  not been registered (i.e. `configureJob` was never called, or the job was not created
+  through `ReferralCoordination`). This is the only hook check needed before money moves;
+  after `fund` succeeds the config is frozen and cannot change.
 
-- `beforeAction(fund)` — acts as a gate: MUST revert if no referral config is stored for
-  this job. This is the last check before money moves; after `fund` succeeds the config is
-  frozen and cannot change.
-
-- `afterAction(complete)` — at this point the escrow has already transferred the full
-  `job.budget` to `ReferralHook` (as the recorded provider). This callback computes
-  `referralAmount` and `providerAmount` from the stored config, then distributes:
-  `providerAmount` to A (the real provider) and `referralAmount` to B. Resolves B's payment
+- `afterAction(complete)` — the core distribution step. At this point the escrow has
+  already transferred the full `job.budget` to `ReferralHook` (as the recorded provider).
+  This callback computes `referralAmount` and `providerAmount` from the stored config, then
+  distributes: `providerAmount` to A and `referralAmount` to B. Resolves B's payment
   address: if B has set an `agentWallet` in the ERC-8004 Identity Registry, that address
   is used; otherwise B's registered referrer address is used directly.
 
-- `afterAction(reject)` — no action needed. The escrow has already refunded `job.budget`
-  to `ReferralCoordination` (the recorded client); `ReferralCoordination` forwards it to C.
-  `ReferralHook` held no funds for this job.
+All other callbacks (`beforeAction(setBudget)`, `afterAction(reject)`, etc.) are no-ops
+and need not be implemented. The `setBudget` proxy function itself emits the
+`referralAmount` event — no hook callback is needed for that. On rejection or expiry,
+`ReferralHook` holds no funds, so no hook action is required.
 
 No vault, no pre-approval from A, and no `recoverReferralFee` function are needed. On
 expiry, `ReferralHook` holds no funds — only the main escrow held C's payment, and
