@@ -56,51 +56,52 @@ themselves or a neutral third party — reviews the submission and decides:
 
 ```mermaid
 sequenceDiagram
-    participant A as A (Provider)
-    participant B as B (Referrer)
-    participant C as C (Client)
-    participant RC as ReferralCoordination (orchestrates agreement + proxies job actions)
-    participant E as E (Evaluator)
-    participant ESC as Job Escrow (holds C's payment)
-    participant H as ReferralHook (holds A's referral fee)
+    participant A as A - Provider
+    participant B as B - Referrer
+    participant C as C - Client
+    participant RC as ReferralCoordination
+    participant E as E - Evaluator
+    participant ESC as Job Escrow
+    participant H as ReferralHook - fee vault
 
-    note over A,H: Phase 1 — All three parties sign the referral agreement on-chain
+    note over A,H: Phase 1 - All three parties sign the referral agreement on-chain
 
-    B->>RC: propose agreement (provider=A, referrer=B, client=C, referral rate, evaluator)
+    B->>RC: propose agreement with provider, referrer, client, referral rate, evaluator
     A->>RC: sign acceptance
     C->>RC: sign acceptance
-    note over RC: Agreement locked — terms cannot change from here
+    note over RC: Agreement locked on-chain - terms cannot change
 
-    note over A,H: Phase 2 — Job is created; A and C negotiate the price
+    note over A,H: Phase 2 - Job is created and A and C negotiate the price
 
-    RC->>ESC: create job (provider=A, evaluator=E, fee vault=H)
+    RC->>ESC: create job with provider A, evaluator E, fee vault H
     A->>RC: propose price and referral terms
-    RC->>H: verify referral terms match signed agreement, store config
+    RC->>H: verify terms match signed agreement and store config
     RC->>ESC: set job price
 
-    note over A,H: Phase 3 — Both parties lock funds in a single atomic transaction
+    note over A,H: Phase 3 - Both parties lock funds in one atomic transaction
 
-    A->>H: grant permission for fee vault to pull referralAmount (= price × rate)
-    C->>ESC: grant permission for escrow to pull total (= full job price)
+    A->>H: grant fee vault permission to pull referralAmount
+    C->>ESC: grant escrow permission to pull full job price
     C->>RC: trigger funding
-    RC->>ESC: escrow pulls total from C
-    RC->>H: automatically triggered — fee vault pulls referralAmount from A
-    A->>H: referralAmount locked in fee vault (using permission granted above)
-    note over ESC,H: If either pull fails, both revert — no money moves
+    RC->>ESC: escrow pulls full job price from C
+    RC->>H: automatically triggered after escrow pull
+    A->>H: fee vault pulls referralAmount from A using permission granted above
+    note over ESC,H: If either pull fails both revert and no money moves
 
-    note over A,H: Phase 4 — A does the work; evaluator settles
+    note over A,H: Phase 4 - A does the work and evaluator settles
 
     A->>ESC: submit work
     E->>ESC: approve or reject
 
     alt Approved
-        ESC->>A: release total (A nets total − referralAmount already locked in vault)
+        ESC->>A: release full job price to A
+        note over A: A nets job price minus referralAmount already locked in vault
         H->>B: release referralAmount to referrer
     else Rejected
-        ESC->>C: refund total to client
+        ESC->>C: refund full job price to client
         H->>A: refund referralAmount to provider
-    else Expired (no decision before deadline)
-        C->>ESC: reclaim total from escrow
+    else Expired - no decision before deadline
+        C->>ESC: reclaim full job price from escrow
         A->>H: reclaim referralAmount from fee vault
     end
 ```
