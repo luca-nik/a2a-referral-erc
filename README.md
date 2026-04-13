@@ -77,10 +77,11 @@ sequenceDiagram
     A->>RC: propose price and referral terms
     RC->>H: verify terms match signed agreement and store config
     RC->>ESC: set job price
+    note over H: hook emits referralAmount so A knows exactly what to approve
+    A->>H: grant fee vault permission to pull referralAmount (now that amount is known)
 
     note over A,H: Phase 3 - Both parties lock funds in one atomic transaction
 
-    A->>H: grant fee vault permission to pull referralAmount
     C->>RC: grant ReferralCoordination permission to pull full job price
     C->>RC: trigger funding
     RC->>ESC: escrow pulls full job price from C
