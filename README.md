@@ -59,48 +59,49 @@ sequenceDiagram
     participant A as A (Provider)
     participant B as B (Referrer)
     participant C as C (Client)
-    participant RC as ReferralCoordination
+    participant RC as ReferralCoordination<br/>(orchestrates agreement + proxies job actions)
     participant E as E (Evaluator)
-    participant ESC as Escrow (ERC-8183)
-    participant H as ReferralHook
+    participant ESC as Job Escrow<br/>(holds C's payment)
+    participant H as ReferralHook<br/>(holds A's referral fee)
 
-    note over A,H: Phase 1 — Agreement
+    note over A,H: Phase 1 — All three parties sign the referral agreement on-chain
 
-    B->>RC: proposeCoordination(provider=A, referrer=B, client=C, rate, evaluator, hook)
-    A->>RC: acceptCoordination()
-    C->>RC: acceptCoordination()
+    B->>RC: propose agreement (provider=A, referrer=B, client=C, referral rate, evaluator)
+    A->>RC: sign acceptance
+    C->>RC: sign acceptance
+    note over RC: Agreement locked — terms cannot change from here
 
-    note over A,H: Phase 2 — Job creation & price negotiation
+    note over A,H: Phase 2 — Job is created; A and C negotiate the price
 
-    RC->>ESC: createJob(provider=A, evaluator=E, hook=H)
-    A->>RC: setBudget(amount, optParams: referrer=B, rateBps)
-    RC->>H: beforeAction(setBudget) — verify terms match signed coordination, store referral config
-    RC->>ESC: setBudget(amount)
+    RC->>ESC: create job (provider=A, evaluator=E, fee vault=H)
+    A->>RC: propose price and referral terms
+    RC->>H: verify referral terms match signed agreement, store config
+    RC->>ESC: set job price
 
-    note over A,H: Phase 3 — Funding (atomic, single transaction)
+    note over A,H: Phase 3 — Both parties lock funds in a single atomic transaction
 
-    A->>H: approve referralAmount (= amount × rateBps / 10000)
-    C->>ESC: approve total (= full job price)
-    C->>RC: fund()
-    RC->>H: beforeAction(fund) — revert if no referral config stored
-    RC->>ESC: fund() — escrow pulls total from C
-    RC->>H: afterAction(fund) — called automatically by ERC-8183 after escrow pull, triggers referral amount pull
-    A->>H: referralAmount pulled into hook vault via transferFrom (approved above)
+    A->>H: grant permission for fee vault to pull referralAmount (= price × rate)
+    C->>ESC: grant permission for escrow to pull total (= full job price)
+    C->>RC: trigger funding
+    RC->>ESC: escrow pulls total from C
+    RC->>H: automatically triggered — fee vault pulls referralAmount from A
+    A->>H: referralAmount locked in fee vault (using permission granted above)
+    note over ESC,H: If either pull fails, both revert — no money moves
 
-    note over A,H: Phase 4 — Execution & settlement
+    note over A,H: Phase 4 — A does the work; evaluator settles
 
-    A->>ESC: submit(deliverable)
-    E->>ESC: complete() or reject()
+    A->>ESC: submit work
+    E->>ESC: approve or reject
 
     alt Approved
-        ESC->>A: release total (A nets total − referralAmount already paid into hook)
-        H->>B: release referralAmount
+        ESC->>A: release total (A nets total − referralAmount already locked in vault)
+        H->>B: release referralAmount to referrer
     else Rejected
-        ESC->>C: refund total
-        H->>A: refund referralAmount
-    else Expired
-        C->>ESC: claimRefund() — escrow refunds total to C
-        A->>H: recoverReferralFee() — hook refunds referralAmount to A
+        ESC->>C: refund total to client
+        H->>A: refund referralAmount to provider
+    else Expired (no decision before deadline)
+        C->>ESC: reclaim total from escrow
+        A->>H: reclaim referralAmount from fee vault
     end
 ```
 
