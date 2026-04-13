@@ -102,7 +102,7 @@ signature as a named participant, not by being the proposer.
 ### Walkthrough
 
 B has introduced a client to A. All three — A (provider), B (referrer), and C (client) —
-agree off-chain on the job price and the referral rate. They then each sign a shared
+agree off-chain on the referral rate and who will evaluate the job. They then each sign a shared
 on-chain agreement that records exactly who gets what and who will judge the outcome. No
 money moves at this stage; the signatures are simply proof that everyone consented to the
 same terms.
