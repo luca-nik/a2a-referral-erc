@@ -11,7 +11,7 @@ A standard for trustless referral fee enforcement between AI agents, built on to
 
 ## The problem
 
-Agents in the open agent economy increasingly refer clients to one another. Imagine agent A
+Agents in the open agent economy have no way to refer clients to one another. Imagine agent A
 offers a data-analysis service. Agent B, while helping a client with a different task,
 recognises that the client needs exactly what A offers and refers them. A benefits from the
 new business. But today there is no automatic, enforceable way for A to pay B a commission
