@@ -4,7 +4,7 @@
 
 ## 1. Problem
 
-Agents in the open agent economy have no standardized way refer clients to one another. Imagine agent A
+Agents in the open agent economy increasingly refer clients to one another. Imagine agent A
 offers a data-analysis service. Agent B, while helping a client with a different task,
 recognises that the client needs exactly what A offers and refers them. A benefits from the
 new business. But today there is no automatic, enforceable way for A to pay B a commission
@@ -37,7 +37,9 @@ intentionally deferred to keep the first version simple and auditable.
 
 ---
 
-## 3. Roles
+## 3. Roles and components
+
+### 3.1 Roles
 
 There are four roles. Three of them (A, B, C) are economic parties who all sign the
 agreement before any money moves. The fourth (E) is named in the agreement but does not
@@ -53,6 +55,44 @@ sign it — their role begins only once the job is running.
 The evaluator role is important: payment only flows when E says the job is complete. If E
 says it failed, everyone is refunded. This separates the judgement of "was the work good
 enough?" from the financial parties who have obvious incentives.
+
+### 3.2 Components at a glance
+
+Five smart contracts are involved. Three are existing standards used unmodified; two are
+new and defined by this ERC.
+
+**Existing standards (used unmodified):**
+
+- **ERC-8001** — the multi-party coordination standard. Provides the on-chain agreement
+  that A, B, and C all sign before any job is created. Think of it as a countersigned
+  contract: once all signatures are collected, the terms are locked and anyone can submit
+  them to trigger job creation.
+
+- **ERC-8183** — the job escrow standard. Manages the job lifecycle (Open → Funded →
+  Submitted → Terminal), holds C's payment, and releases it to A on completion or refunds
+  it on rejection. It also provides an optional hook mechanism that this ERC uses to enforce
+  the referral leg.
+
+- **ERC-8004** — the agent identity and reputation standard. Used optionally: A can
+  advertise their referral rate in their on-chain profile, and both parties can record
+  referral reputation feedback after the job.
+
+**New contracts (defined by this ERC):**
+
+- **ReferralCoordination** — the orchestrator. It verifies all three signatures from
+  ERC-8001 and creates the ERC-8183 job. Because ERC-8183's `createJob` sets `client =
+  msg.sender`, `ReferralCoordination` — not C — becomes the recorded ERC-8183 client. This
+  means C cannot interact with the job directly; instead, `ReferralCoordination` exposes its
+  own `setBudget`, `fund`, and `reject` functions that validate C's identity and then forward
+  the call to ERC-8183 on C's behalf. It also handles the token flow: when C calls `fund`,
+  `ReferralCoordination` pulls C's tokens to itself first, then the escrow pulls from
+  `ReferralCoordination`. This means **C approves `ReferralCoordination`**, not the escrow
+  directly.
+
+- **ReferralHook** — the referral fee vault. An ERC-8183 hook contract that holds A's
+  pre-committed referral fee separately from the main escrow. On job completion it pays B;
+  on rejection or expiry it refunds A. It enforces the referral terms by cross-checking
+  every configuration against the signed ERC-8001 agreement.
 
 ---
 
@@ -82,10 +122,10 @@ bytes32 constant AGENT_REFERRAL_V1_TYPE = keccak256("AGENT_REFERRAL_V1");
 
 `CoordinationPayload.coordinationData = abi.encode(ReferralTerms)`
 
-`referralRateBps` expresses the fee as basis points — a standard
+**Reading the fields:** `referralRateBps` expresses the fee as basis points — a standard
 financial convention where 10 000 = 100%. So a 5% referral fee is 500 bps. The `hook`
 field is the address of the ReferralHook smart contract; all parties must agree on this
-address in the signed terms, which means A explicitly consents to the hook holding and
+address in the signed terms, which means C explicitly consents to the hook holding and
 distributing the referral fee. The `evaluator` is named here rather than left open, so
 everyone knows upfront who will judge the job.
 
@@ -102,7 +142,7 @@ signature as a named participant, not by being the proposer.
 ### Walkthrough
 
 B has introduced a client to A. All three — A (provider), B (referrer), and C (client) —
-agree off-chain on the referral rate and who will evaluate the job. They then each sign a shared
+agree off-chain on the job price and the referral rate. They then each sign a shared
 on-chain agreement that records exactly who gets what and who will judge the outcome. No
 money moves at this stage; the signatures are simply proof that everyone consented to the
 same terms.
@@ -133,7 +173,7 @@ themselves or a neutral third party — reviews the submission and decides:
    {A, B, C} sorted ascending by address (required by ERC-8001 for canonical ordering).
    The proposer sets `intent.agentId` to their own address; the referrer is identified
    by `terms.referrer`, not by who proposes.
-3. A, B and C sign acceptances (ERC-8001). All
+3. A and C sign acceptances (ERC-8001). B already signed the intent at propose time. All
    three signatures are now on-chain or available off-chain for submission.
 4. Anyone calls `ReferralCoordination.executeCoordination(...)`, which verifies all
    signatures and checks that `terms.provider`, `terms.referrer`, and `terms.client` match
@@ -345,8 +385,11 @@ Before `fund` is called, each party must grant the correct token allowance to th
 contract. ERC-20 tokens (the token standard used here) require the owner to explicitly
 authorise a smart contract to spend on their behalf before any transfer can occur.
 
-- **C (client)** grants one allowance: to the ERC-8183 job contract for `total` (the
-  full agreed job price). C has no direct interaction with the hook contract at any point.
+- **C (client)** grants one allowance: to `ReferralCoordination` for `total` (the full
+  agreed job price). C does not approve the ERC-8183 escrow directly — because
+  `ReferralCoordination` is the recorded ERC-8183 client, the escrow pulls from
+  `ReferralCoordination`, which in turn pulls from C. C has no direct interaction with the
+  hook contract at any point.
 
 - **A (provider)** grants one allowance: to `ReferralHook` for `referralAmount`. The hook
   emits this exact amount when `setBudget` is called, so A knows precisely what to approve.
@@ -369,8 +412,9 @@ A robust system must be safe even when things go wrong. Here are the cases and r
   stays Open; C's funds are not moved. Remedy: A approves `referralAmount` to ReferralHook,
   then C retries `fund`.
 
-- **C's escrow allowance missing** — `fund` reverts before the hook is even called. Remedy:
-  C approves `total` to the ERC-8183 job contract, then retries `fund`.
+- **C's allowance missing** — `ReferralCoordination` cannot pull `total` from C, so `fund`
+  reverts immediately. Remedy: C approves `total` to `ReferralCoordination`, then retries
+  `fund`.
 
 - **`setBudget` never called with valid `optParams`** — The hook's `beforeAction(fund)`
   reverts because no referral config is stored. The job stays Open. Remedy: A or C calls
@@ -443,10 +487,18 @@ future designs.
   the referral fee could flow directly from the escrow — eliminating A's separate approval
   and the external hook vault entirely.
 
-- **`createJobFor(address client, ...)` in ERC-8183.** Today `createJob` sets `client =
-  msg.sender`. If ERC-8183 accepted an explicit client address, any party could execute the
-  coordination and create the job while still recording C as the client — removing the need
-  for the proxy-client pattern in `ReferralCoordination`.
+- **`createJob` should accept an explicit client address in ERC-8183.** Today `createJob`
+  sets `client = msg.sender`, meaning the contract that calls `createJob` is permanently
+  recorded as the client. In any composable system where a third contract (like
+  `ReferralCoordination`) orchestrates job creation on behalf of an end user, this forces
+  that contract to become a proxy: it must intercept every client-role action (`setBudget`,
+  `fund`, `reject`) and re-expose them, and it introduces an extra token hop (C approves the
+  orchestrator, the orchestrator approves the escrow) that would otherwise be unnecessary.
+  A simple `createJobFor(address client, ...)` variant — where the caller can specify who
+  the client is — would eliminate this entirely: the orchestrator creates the job, C is
+  recorded as the client, and C interacts with ERC-8183 directly from that point. This is a
+  general composability issue, not specific to referrals: any protocol that wraps ERC-8183
+  job creation faces the same problem.
 
 - **Late-bound evaluator in ERC-8183.** A guarded `setEvaluator` function (callable only
   before funding) would allow the evaluator to be chosen after the job is created but before
