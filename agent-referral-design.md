@@ -185,26 +185,30 @@ themselves or a neutral third party — reviews the submission and decides:
      during price negotiation — this is intentional, as A and C may take several rounds to
      agree on a price.
    - The hook SHOULD emit an event with the computed `referralAmount = amount * rateBps /
-     10_000` so A knows the exact token allowance to grant the hook before `fund` is called.
+     10_000` so A knows the exact token allowance to grant the hook.
+   - A SHOULD batch `token.approve(ReferralHook, referralAmount)` together with the
+     `setBudget` call in a single multicall transaction. If the price is renegotiated and
+     `setBudget` is called again, A SHOULD update the approval in the same transaction.
+     This is not enforced by the protocol but is enforced by economic self-interest: if A's
+     approval is not in place when C calls `fund`, the transaction reverts and the job stays
+     Open — A cannot receive any payment until they cooperate (see §8).
 6. C calls `fund(jobId, expectedBudget)` through `ReferralCoordination`. In the same
    transaction, atomically:
    - The hook's `beforeAction(fund)` reverts if no referral config is stored (i.e. no valid
      `setBudget` was ever called), keeping the job Open.
    - ERC-8183 pulls `job.budget` (= `total`) from C into escrow.
-   - The hook's `afterAction(fund)` pulls `referralAmount` from A into the hook's custody.
-   - If either transfer fails (missing or insufficient allowance), the entire transaction
-     reverts and no funds move. Once `fund` succeeds the job is Funded; `setBudget` is no
-     longer callable and the referral config is frozen.
-7. A grants ERC-20 allowance to ReferralHook for `referralAmount` at any point after
-   `setBudget` is agreed and before C calls `fund` (see §8).
-8. Provider submits work → Evaluator decides:
+   - The hook's `afterAction(fund)` pulls `referralAmount` from A into the hook's custody
+     using A's pre-granted approval. If the approval is missing or insufficient the entire
+     transaction reverts — C's payment is not moved either.
+   - Once `fund` succeeds the job is Funded; `setBudget` is no longer callable and the
+     referral config is frozen.
+7. Provider submits work → Evaluator decides:
    - **Complete:** escrow pays A `total`; hook pays B `referralAmount` (using B's
      `agentWallet` from ERC-8004 if set, otherwise B's registered address). A's net
      receipt is `total − referralAmount`.
    - **Reject:** escrow refunds C `total`; hook refunds A `referralAmount`.
-   - **Expiry:** `claimRefund` on ERC-8183 (not hookable; called directly, not through
-     `ReferralCoordination`) refunds C `total`; A calls `recoverReferralFee(jobId)` on the
-     hook to reclaim `referralAmount`.
+   - **Expiry:** `claimRefund` on ERC-8183 (non-hookable; called directly) refunds C
+     `total`; A calls `recoverReferralFee(jobId)` on the hook to reclaim `referralAmount`.
 
 ### Payment split
 
@@ -385,10 +389,13 @@ authorise a smart contract to spend on their behalf before any transfer can occu
   `ReferralCoordination`, which in turn pulls from C. C has no direct interaction with the
   hook contract at any point.
 
-- **A (provider)** grants one allowance: to `ReferralHook` for `referralAmount`. The hook
-  emits this exact amount when `setBudget` is called, so A knows precisely what to approve.
-  A must do this before C calls `fund`; if the allowance is missing when `fund` is called,
-  the transaction reverts and C's funds are not moved (the two transfers are atomic).
+- **A (provider)** grants one allowance: to `ReferralHook` for `referralAmount`. A SHOULD
+  batch this `approve` call together with their `setBudget` call in a single multicall
+  transaction — the hook emits `referralAmount` at that point so A knows the exact amount.
+  If `setBudget` is called again with a different price, A SHOULD update the approval in the
+  same transaction. This is not enforced by the protocol, but A is economically compelled to
+  cooperate: if the approval is missing when C calls `fund`, the transaction reverts and the
+  job stays Open — A cannot get paid until the approval is in place.
 
 - C interacts with `ReferralCoordination` for all client-role actions (`setBudget`, `fund`,
   `reject`). Direct calls to ERC-8183 for those functions will revert because
@@ -403,8 +410,10 @@ A robust system must be safe even when things go wrong. Here are the cases and r
 
 - **A's allowance missing or too small** — The hook's `afterAction(fund)` reverts when
   trying to pull `referralAmount` from A. The whole `fund` transaction reverts; the job
-  stays Open; C's funds are not moved. Remedy: A approves `referralAmount` to ReferralHook,
-  then C retries `fund`.
+  stays Open; C's funds are not moved. This is the protocol's enforcement mechanism: A
+  cannot receive payment on any job without first approving the referral fee. Remedy: A
+  batches `approve(ReferralHook, referralAmount)` with their next `setBudget` call, then
+  C retries `fund`.
 
 - **C's allowance missing** — `ReferralCoordination` cannot pull `total` from C, so `fund`
   reverts immediately. Remedy: C approves `total` to `ReferralCoordination`, then retries
