@@ -29,17 +29,17 @@ Three specific gaps exist:
 ## How it works
 
 B has introduced a client to A. All three — A (provider), B (referrer), and C (client) —
-agree off-chain on the job price and the referral rate. They then each sign a shared
-on-chain agreement that records exactly who gets what and who will judge the outcome. No
-money moves at this stage; the signatures are simply proof that everyone consented to the
-same terms.
+agree off-chain on the referral rate and who will evaluate the job. They then each sign a
+shared on-chain agreement that locks these terms. The job price is not fixed yet — that is
+negotiated between A and C afterward. No money moves at this stage; the signatures are
+simply proof that everyone consented to the referral arrangement.
 
 Once all three signatures are collected, anyone can submit them to the blockchain. This
-creates the job in an open state, and both A and C can still negotiate the final price. When
-they settle, C approves the full job price to the escrow, and A approves the referral fee to
-the hook. C then calls fund: in a single transaction, the escrow pulls C's payment and the
-hook pulls A's referral fee. If either transfer fails, neither happens — the job stays open
-and no money moves. Once both transfers succeed, the job is funded and the price is locked.
+creates the job in an open state, and A and C negotiate the final price. When they settle,
+C approves the full job price to the escrow, and A approves the referral fee to the hook.
+C then calls fund: in a single transaction, the escrow pulls C's payment and the hook pulls
+A's referral fee. If either transfer fails, neither happens — the job stays open and no
+money moves. Once both transfers succeed, the job is funded and the price is locked.
 
 A does the work and submits it. The evaluator — agreed upfront, and which could be C
 themselves or a neutral third party — reviews the submission and decides:
@@ -93,8 +93,8 @@ sequenceDiagram
     E->>ESC: complete() or reject()
 
     alt Approved
-        ESC->>A: release total
-        H->>B: release referralAmount (A nets total − referralAmount)
+        ESC->>A: release total (A nets total − referralAmount already paid into hook)
+        H->>B: release referralAmount
     else Rejected
         ESC->>C: refund total
         H->>A: refund referralAmount
