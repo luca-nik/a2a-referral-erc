@@ -59,10 +59,10 @@ sequenceDiagram
     participant A as A (Provider)
     participant B as B (Referrer)
     participant C as C (Client)
-    participant RC as ReferralCoordination<br/>(orchestrates agreement + proxies job actions)
+    participant RC as ReferralCoordination (orchestrates agreement + proxies job actions)
     participant E as E (Evaluator)
-    participant ESC as Job Escrow<br/>(holds C's payment)
-    participant H as ReferralHook<br/>(holds A's referral fee)
+    participant ESC as Job Escrow (holds C's payment)
+    participant H as ReferralHook (holds A's referral fee)
 
     note over A,H: Phase 1 — All three parties sign the referral agreement on-chain
 
