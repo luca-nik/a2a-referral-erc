@@ -133,7 +133,7 @@ themselves or a neutral third party — reviews the submission and decides:
    {A, B, C} sorted ascending by address (required by ERC-8001 for canonical ordering).
    The proposer sets `intent.agentId` to their own address; the referrer is identified
    by `terms.referrer`, not by who proposes.
-3. A and C sign acceptances (ERC-8001). B already signed the intent at propose time. All
+3. A, B and C sign acceptances (ERC-8001). All
    three signatures are now on-chain or available off-chain for submission.
 4. Anyone calls `ReferralCoordination.executeCoordination(...)`, which verifies all
    signatures and checks that `terms.provider`, `terms.referrer`, and `terms.client` match
