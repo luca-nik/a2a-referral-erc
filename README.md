@@ -81,7 +81,7 @@ sequenceDiagram
     note over A,H: Phase 3 - Both parties lock funds in one atomic transaction
 
     A->>H: grant fee vault permission to pull referralAmount
-    C->>ESC: grant escrow permission to pull full job price
+    C->>RC: grant ReferralCoordination permission to pull full job price
     C->>RC: trigger funding
     RC->>ESC: escrow pulls full job price from C
     RC->>H: automatically triggered after escrow pull
