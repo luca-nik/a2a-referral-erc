@@ -125,18 +125,12 @@ bytes32 constant AGENT_REFERRAL_V1_TYPE = keccak256("AGENT_REFERRAL_V1");
 
 `CoordinationPayload.coordinationData = abi.encode(ReferralTerms)`
 
-**Reading the fields:** `referralRateBps` expresses the fee as basis points — a standard
+`referralRateBps` expresses the fee as basis points — a standard
 financial convention where 10 000 = 100%. So a 5% referral fee is 500 bps. The `hook`
 field is the address of the ReferralHook smart contract; all parties must agree on this
 address in the signed terms, which means C explicitly consents to the hook being the
 recorded ERC-8183 provider and handling the split. The `evaluator` is named here rather
 than left open, so everyone knows upfront who will judge the job.
-
-`ReferralCoordination` MUST verify that `terms.provider`, `terms.referrer`, and
-`terms.client` are exactly the three addresses in `intent.participants`. Any of the three
-may be the proposer (`intent.agentId`); the referrer is always identified by `terms.referrer`
-regardless of who initiates the coordination. B's consent is proven by their acceptance
-signature as a named participant, not by being the proposer.
 
 ---
 
