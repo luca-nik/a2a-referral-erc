@@ -82,7 +82,7 @@ bytes32 constant AGENT_REFERRAL_V1_TYPE = keccak256("AGENT_REFERRAL_V1");
 
 `CoordinationPayload.coordinationData = abi.encode(ReferralTerms)`
 
-**Reading the fields:** `referralRateBps` expresses the fee as basis points — a standard
+`referralRateBps` expresses the fee as basis points — a standard
 financial convention where 10 000 = 100%. So a 5% referral fee is 500 bps. The `hook`
 field is the address of the ReferralHook smart contract; all parties must agree on this
 address in the signed terms, which means A explicitly consents to the hook holding and
