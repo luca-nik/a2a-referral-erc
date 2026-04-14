@@ -40,7 +40,7 @@ calls to create a properly configured job from a referral key.
 
 ## 3. Scope
 
-This v2 standardises a **single-hop, single-job referral** between two agents (A: provider,
+This ERC standardises a **single-hop, single-job referral** between two agents (A: provider,
 B: referrer) for one client (C), enforced by existing primitives only. The referral
 arrangement is established once between A and B using ERC-8001 multi-party coordination;
 the resulting key is reusable across many client introductions. The payout enforcement uses
@@ -108,17 +108,17 @@ A and B co-sign a referral arrangement using ERC-8001 multi-party coordination. 
 referral-specific terms are encoded as:
 
 ```solidity
-struct ReferralTermsV2 {
+struct ReferralTerms {
     address provider;        // A — the agent doing the work
     address referrer;        // B — the agent who made the introduction
     address hook;            // the ReferralHook contract both parties trust
     uint16  referralRateBps; // referral fee in basis points (100 = 1%; max 10 000 = 100%)
 }
 
-bytes32 constant AGENT_REFERRAL_V2_TYPE = keccak256("AGENT_REFERRAL_V2");
+bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
 ```
 
-`CoordinationPayload.coordinationData = abi.encode(ReferralTermsV2)`
+`CoordinationPayload.coordinationData = abi.encode(ReferralTerms)`
 
 There is no `client` or `evaluator` in these terms — those are specified per job by C at
 job creation time.
@@ -136,10 +136,10 @@ ERC-8001 fields:
 - `verifyingContract = ReferralCoordination` — the EIP-712 domain binding. Signatures are
   bound to the specific `ReferralCoordination` deployment; they cannot be replayed against
   a different contract.
-- `coordinationType = AGENT_REFERRAL_V2_TYPE` — namespaces this coordination type so
+- `coordinationType = AGENT_REFERRAL_TYPE` — namespaces this coordination type so
   implementations can recognise and route referral arrangements.
 - `coordinationData` — opaque bytes in ERC-8001; this ERC defines its contents as
-  `abi.encode(ReferralTermsV2)`.
+  `abi.encode(ReferralTerms)`.
 - `participants = [A, B]` sorted ascending — only two parties. C is not a participant.
 
 `ReferralCoordination` implements ERC-8001 natively: A and B call `proposeCoordination`
@@ -190,8 +190,8 @@ job creation and which may be C themselves — reviews and decides:
    using the metadata key `"referralRateBps"` (proposed by this ERC; see §7.2).
 
 2. A proposes an ERC-8001 coordination on `ReferralCoordination` with
-   `coordinationType = AGENT_REFERRAL_V2_TYPE`, participants `[A, B]` sorted ascending,
-   and `coordinationData = abi.encode(ReferralTermsV2)`. `ReferralCoordination` stores the
+   `coordinationType = AGENT_REFERRAL_TYPE`, participants `[A, B]` sorted ascending,
+   and `coordinationData = abi.encode(ReferralTerms)`. `ReferralCoordination` stores the
    payload and emits `CoordinationProposed`.
 
 3. B calls `acceptCoordination` on `ReferralCoordination`. The coordination reaches `Ready`
@@ -200,7 +200,7 @@ job creation and which may be C themselves — reviews and decides:
 4. C calls `ReferralCoordination.createJobWithReferral(intentHash, evaluator, expiredAt,
    description)`:
    - RC checks the coordination status is `Ready` and not expired.
-   - RC reads the stored `ReferralTermsV2` for this `intentHash`.
+   - RC reads the stored `ReferralTerms` for this `intentHash`.
    - RC calls `ESC.createJob(provider=terms.hook, evaluator, expiredAt, description,
      hook=terms.hook)`. Because ERC-8183's `createJob` sets `client = msg.sender`,
      `ReferralCoordination` becomes the ERC-8183 client (see §7.1).
@@ -342,8 +342,8 @@ Used optionally in two ways:
 
 | Item | Description |
 |------|-------------|
-| `AGENT_REFERRAL_V2_TYPE` | Coordination type: `keccak256("AGENT_REFERRAL_V2")` |
-| `ReferralTermsV2` | Struct encoding the standing referral arrangement (see §5) |
+| `AGENT_REFERRAL_TYPE` | Coordination type: `keccak256("AGENT_REFERRAL")` |
+| `ReferralTerms` | Struct encoding the standing referral arrangement (see §5) |
 | `createJobWithReferral` | The core primitive: referral-keyed job creation entry point |
 | `IReferralCoordination` | Interface for the ERC-8001 coordinator, job factory, and ERC-8183 proxy client |
 | `IReferralHook` | Interface for the provider proxy and payment split logic |
@@ -401,7 +401,7 @@ Used optionally in two ways:
 
 ---
 
-## 11. Constraints (v2 assumptions)
+## 11. Constraints
 
 - **One job per `createJobWithReferral` call.** Each call creates one ERC-8183 job. The
   key may be used for many calls.
@@ -410,7 +410,7 @@ Used optionally in two ways:
   distrust the evaluator).
 - **Rate fixed in the key.** A and C negotiate the job price via `setBudget`, but the
   referral rate is fixed when A and B created the key. A cannot change the rate per-job.
-- **Hook consented by A and B.** The `ReferralHook` address is in `ReferralTermsV2` and
+- **Hook consented by A and B.** The `ReferralHook` address is in `ReferralTerms` and
   signed by both A and B. C trusts it implicitly by using the key.
 
 ---
