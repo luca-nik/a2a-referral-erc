@@ -53,18 +53,55 @@ agreement rather than some other kind of ERC-8001 coordination.
 
 ### The coordination contract
 
-A and B do not sign a piece of paper — they interact with a smart contract called
-`ReferralCoordination`. This contract does two things:
+`ReferralCoordination` is a new smart contract defined by this ERC. It has two
+responsibilities: managing the signing process between A and B, and answering queries
+about existing agreements.
 
-**First, it manages the signing process.** It implements ERC-8001, the multi-party
-coordination standard. A calls `proposeCoordination` to submit the terms and their
-signature. B calls `acceptCoordination` to countersign. Once both have signed, the
-agreement is locked on-chain and neither party can alter it. The contract also stores
-the full agreement terms internally so they can be retrieved later.
+**Managing the signing process.** `ReferralCoordination` implements ERC-8001, the
+multi-party coordination standard. A calls `proposeCoordination` to submit the terms and
+their signature. B calls `acceptCoordination` to countersign. Once both have signed, the
+agreement is locked on-chain and neither party can alter it. The contract stores the full
+agreement terms internally so they can be retrieved later. A can call `cancelCoordination`
+at any time to revoke the key.
 
-**Second, it answers queries about existing agreements.** Once an agreement is registered,
-anyone can call `referralInfo` on the contract (described below). The contract looks up
-the stored terms and returns them.
+**Answering queries.** Once an agreement is registered, anyone can call `referralInfo`
+to look up its terms.
+
+The full interface exposed by `ReferralCoordination` is:
+
+```solidity
+interface IReferralCoordination {
+
+    // ── Inherited from ERC-8001 ──────────────────────────────────────────────
+    // A calls this to propose the agreement and submit their signature
+    function proposeCoordination(
+        AgentIntent calldata intent,
+        bytes calldata signature,
+        CoordinationPayload calldata payload
+    ) external returns (bytes32 intentHash);
+
+    // B calls this to countersign and lock the agreement
+    function acceptCoordination(
+        bytes32 intentHash,
+        AcceptanceAttestation calldata attestation
+    ) external returns (bool allAccepted);
+
+    // A or B calls this to revoke the key
+    function cancelCoordination(bytes32 intentHash, string calldata reason) external;
+
+    // Returns the current state of an agreement (Ready, Cancelled, Expired, ...)
+    function getCoordinationStatus(bytes32 intentHash)
+        external view
+        returns (Status status, address proposer, address[] memory participants,
+                 address[] memory acceptedBy, uint256 expiry);
+
+    // ── New — defined by this ERC ────────────────────────────────────────────
+    // Given a referral key, returns the agreed terms and whether the key is still active
+    function referralInfo(bytes32 intentHash)
+        external view
+        returns (address provider, address referrer, uint16 rateBps, bool valid);
+}
+```
 
 The EIP-712 `verifyingContract` in the signing domain is `ReferralCoordination` itself.
 This means A's and B's signatures are cryptographically bound to this specific contract
