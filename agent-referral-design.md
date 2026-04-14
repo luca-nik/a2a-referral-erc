@@ -26,8 +26,9 @@ Whether and how the provider honours that is their own business — but the agre
 on-chain, signed, and publicly auditable.
 
 It does **not** define how the agreement is enforced. Enforcement is the provider's
-implementation choice. Social enforcement via ERC-8004 reputation is the natural
-mechanism — the credential makes non-compliance provable, not impossible.
+implementation choice. Social and economic mechanisms — for example on-chain reputation
+systems such as ERC-8004 — provide the natural incentive layer. The credential makes
+non-compliance provable, not impossible.
 
 ### The agreement format
 
@@ -173,7 +174,7 @@ B shares this key with any client they introduce to A.
 
 - **Socially enforced.** If A receives payment for a job introduced by B and does not pay
   B, B has irrefutable on-chain evidence: the signed key (A committed), the job completion
-  event (A was paid), and the absence of any transfer to B. ERC-8004 reputation is the
+  event (A was paid), and the absence of any transfer to B. Social and economic mechanisms — e.g. on-chain reputation systems — are the
   stick.
 
 - **Implementation-agnostic.** How A accepts and honours the key is A's own choice.

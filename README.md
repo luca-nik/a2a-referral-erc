@@ -31,7 +31,7 @@ That is the standard. A single read function backed by a cryptographic commitmen
 - **Unforgeable** — the key contains A's EIP-712 signature. A cannot deny the agreement.
 - **Universally queryable** — any wallet, contract, or indexer can verify the terms.
 - **Socially enforced** — if A is paid and does not pay B, the evidence is on-chain.
-  ERC-8004 reputation is the stick.
+  Social and economic mechanisms — e.g. on-chain reputation systems such as ERC-8004 — are the stick.
 - **Implementation-agnostic** — how A honours the key is their own choice. Providers
   who pay their referrers attract more referral business.
 
