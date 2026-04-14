@@ -181,16 +181,23 @@ key must be cancelled and a new one created with the updated `ReferralTerms`.
 duration when creating the key. After expiry `referralInfo` returns `valid = false`. A
 fresh key can be created if the arrangement continues.
 
-**Cancellation.** ERC-8001 grants the proposer the right to cancel the
-coordination unilaterally before expiry. This is a property of the underlying standard,
-not a limitation of this ERC. In practice:
+**Cancellation.** ERC-8001 grants the proposer the right to cancel the coordination
+unilaterally before expiry. This is a property of the underlying standard, not a
+limitation of this ERC. In practice:
 
-- If R proposes, R holds the cancellation right. R can revoke the key at any time: for
-  example if P stops honouring referral fees. 
-- If P proposes, P holds the cancellation right. P can revoke the key if they want to end
-  the arrangement.
+- **If R proposes**, R holds the cancellation right. R can revoke the key at any time —
+  for example if P stops honouring referral fees. P cannot cancel unilaterally; P's
+  recourse is to stop honouring the key, upon which R will notice and cancel to protect
+  their own reputation and their clients.
+- **If P proposes**, P holds the cancellation right. P can revoke the key at any time if
+  they want to end the arrangement. R cannot cancel unilaterally; R's recourse is to stop
+  sharing the key with new clients — existing clients who already hold it can still
+  present it until expiry.
 
-If this guarantees are not sufficient, we can think to implement a different cancellation
+> **Note.** If this asymmetry is insufficient, `ReferralRegistry` can override ERC-8001's
+> cancellation logic to allow either party to cancel regardless of who proposed. This
+> would require a small extension in the `cancelCoordination` implementation; the
+> implementation overhead should be assessed before adopting this approach.
 
 ---
 
