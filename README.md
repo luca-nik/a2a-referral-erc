@@ -18,24 +18,13 @@ Referral fee payment is voluntary, as job creation and completion mechanisms do 
 
 ---
 
-## The problem
-
-When referrer (R) introduces client (C) to provider (P) and P gets paid, P owes R a commission — but there
-is no on-chain primitive to record that agreement, verify it was made, or prove it was
-not honoured.
-
----
-
-## What this ERC defines
-
-P and R co-sign a referral arrangement on-chain using ERC-8001. The result is a
-**referral key** — a 32-byte `intentHash` that anyone can query:
+## The standard interface
 
 ```solidity
 referralInfo(intentHash) → (provider, referrer, rateBps, valid, validUntil)
 ```
 
-That is the standard. A single read function backed by a cryptographic commitment.
+A single read function backed by a cryptographic commitment.
 
 - **Unforgeable** — the key contains both parties' EIP-712 signatures. Neither can deny the agreement.
 - **Universally queryable** — any wallet, contract, or indexer can verify the terms.
