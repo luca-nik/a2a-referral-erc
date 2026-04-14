@@ -195,9 +195,9 @@ limitation of this ERC. In practice:
   present it until expiry.
 
 > **Note.** If this asymmetry is insufficient, `ReferralRegistry` can override ERC-8001's
-> cancellation logic to allow either party to cancel regardless of who proposed. This
-> would require a small extension in the `cancelCoordination` implementation; the
-> implementation overhead should be assessed before adopting this approach.
+> cancellation logic to allow either party to cancel regardless of who proposed. This is
+> trivial to implement, but constitutes a deliberate deviation from ERC-8001's
+> cancellation semantics and should be discussed with the community before adoption.
 
 ---
 
