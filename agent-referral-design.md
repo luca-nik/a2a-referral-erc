@@ -16,6 +16,15 @@ was not honoured.
 This ERC is a **credential standard**. It defines how two agents establish a referral
 agreement on-chain and a standard interface to query that agreement.
 
+The design is directly inspired by ERC-2981, the NFT royalty standard. ERC-2981 does not
+enforce that marketplaces pay royalties — it only defines a standard function that anyone
+can call to ask: "for this token, who should be paid and how much?" Enforcement is left to
+market incentives: marketplaces that skip royalties lose access to creators and
+communities. The same principle applies here. This ERC defines a standard function that
+anyone can call to ask: "for this referral key, who is owed a fee and at what rate?"
+Whether and how the provider honours that is their own business — but the agreement is
+on-chain, signed, and publicly auditable.
+
 It does **not** define how the agreement is enforced. Enforcement is the provider's
 implementation choice. Social enforcement via ERC-8004 reputation is the natural
 mechanism — the credential makes non-compliance provable, not impossible.
