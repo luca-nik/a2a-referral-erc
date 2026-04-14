@@ -1,9 +1,8 @@
 # Agent-to-Agent Referral ERC
 
 A standard for trustless referral fee enforcement between AI agents, built on top of
-[ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) (multi-party coordination),
-[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) (agent identity and reputation), and
-[ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) (job escrow).
+[ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) (job escrow) and
+[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) (agent identity and reputation).
 
 > **Full design document:** [agent-referral-design.md](./agent-referral-design.md)
 
@@ -28,25 +27,23 @@ Three specific gaps exist:
 
 ## How it works
 
-B has introduced a client to A. All three — A (provider), B (referrer), and C (client) —
-agree off-chain on the referral rate and who will evaluate the job. They then each sign a
-shared on-chain agreement that locks these terms. No money moves at this stage; the
-signatures are simply proof that everyone consented to the referral arrangement.
+A and B co-sign a referral arrangement on-chain, agreeing on a rate. This produces a
+referral key — a 32-byte hash — that B can hand to any client they introduce to A. The key
+encodes who gets what; it can be used for any number of introductions and is valid until it
+expires or A revokes it.
 
-Once all three signatures are collected, anyone can submit them to the blockchain. This
-creates the job with `ReferralHook` recorded as the ERC-8183 provider — a contract that
-acts as a proxy for A and handles the payment split. A calls `setBudget` and C calls `fund`
-through their respective proxies. Only C's payment moves at this point; A has nothing to
-pre-approve or lock up.
+When C, a client B introduced, wants to hire A, they present the key in a single
+transaction: `createJobWithReferral(key, evaluator, deadline, description)`. The contract
+verifies the key, reads the agreed terms, and creates a job where the payment split is
+already configured. No further setup is needed.
 
-A does the work and submits it through `ReferralHook`. The evaluator — agreed upfront, and
-which could be C themselves or a neutral third party — reviews the submission and decides:
+A and C agree on a price. C locks the full amount into escrow — A has nothing to pre-approve
+or lock up. A does the work. The evaluator decides:
 
-- **Approved:** the escrow releases the full job price to `ReferralHook`, which immediately
+- **Approved:** the escrow releases the full amount to a split contract, which immediately
   pays A their share and B the referral fee in the same transaction.
-- **Rejected:** the escrow refunds C. A has no locked funds to recover.
-- **Expired:** if no decision is made in time, anyone can trigger `claimRefund` on the
-  escrow. C gets their payment back. A has nothing to reclaim.
+- **Rejected:** C gets a full refund. A has nothing to recover.
+- **Expired:** same as rejected.
 
 ---
 
@@ -62,37 +59,41 @@ sequenceDiagram
     participant ESC as Job Escrow
     participant RH as ReferralHook - provider proxy and split
 
-    note over A,RH: Phase 1 - All three parties sign the referral agreement on-chain
+    note over A,RH: Phase 1 - A and B establish a standing referral arrangement
 
-    B->>RC: propose agreement with provider, referrer, client, referral rate, evaluator
-    A->>RC: sign acceptance
-    C->>RC: sign acceptance
-    note over RC: Agreement locked on-chain - terms cannot change
+    A->>RC: propose coordination with referrer=B, rateBps, hook
+    B->>RC: sign acceptance
+    note over RC: intentHash is the referral key - stays Ready - reusable
 
-    note over A,RH: Phase 2 - Job is created and A and C negotiate the price
+    note over A,RH: Phase 2 - B introduces C to A off-chain and shares the key
 
-    RC->>ESC: create job with provider=ReferralHook, evaluator=E, hook=ReferralHook
+    B-->>C: share intentHash (off-chain)
+
+    note over A,RH: Phase 3 - C creates a job using the key
+
+    C->>RC: createJobWithReferral(intentHash, evaluator, expiredAt, description)
+    RC->>ESC: create job with provider=ReferralHook, hook=ReferralHook
     RC->>RH: configureJob - register referral terms for this job
-    A->>RH: propose price via setBudget - RH is the ERC-8183 provider
+    note over RC: emit ReferralJobCreated so A learns about the job
+
+    note over A,RH: Phase 4 - A and C agree on price then C funds
+
+    A->>RH: setBudget - propose price via provider proxy
     RH->>ESC: setBudget as recorded provider
-    note over RH: hook validates terms and stores referral config
-
-    note over A,RH: Phase 3 - C locks funds in one transaction - no action needed from A
-
     C->>RC: grant ReferralCoordination permission to pull full job price
-    C->>RC: trigger funding
+    C->>RC: fund
     RC->>ESC: escrow pulls full job price from C via ReferralCoordination
-    note over ESC: job is now Funded - only C tokens moved - A has no locked funds
+    note over ESC: job is Funded - only C tokens moved - A has no locked funds
 
-    note over A,RH: Phase 4 - A does the work and evaluator settles
+    note over A,RH: Phase 5 - A does the work and evaluator settles
 
-    A->>RH: submit work via proxy
+    A->>RH: submit work via provider proxy
     RH->>ESC: submit as recorded provider
-    E->>ESC: approve or reject
+    E->>ESC: complete or reject
 
     alt Approved
         ESC->>RH: release full job price to ReferralHook as recorded provider
-        RH->>A: pay provider share (job price minus referral fee)
+        RH->>A: pay provider share - job price minus referral fee
         RH->>B: pay referral fee
     else Rejected
         ESC->>RC: refund full job price to ReferralCoordination as recorded client
@@ -106,5 +107,19 @@ sequenceDiagram
 
 ---
 
+## Key properties
+
+- **One agreement, many introductions.** A and B sign once; the key works for every client
+  B sends A's way until it expires or A revokes it.
+- **C needs no prior relationship with A or B.** C just presents the key. No three-party
+  coordination, no prior signatures from C.
+- **A locks nothing.** The split is enforced on the payment output, not by locking A's
+  funds upfront. The escrow pays the split contract on completion; the split contract
+  distributes from there.
+- **Revocable.** A can cancel the key at any time. Existing jobs in progress are
+  unaffected.
+
+---
+
 For data structures, component details, failure cases, and security considerations see
-[agent-referral-design.md](./agent-referral-design.md).
+[agent-referral-design-v2.md](./agent-referral-design-v2.md).
