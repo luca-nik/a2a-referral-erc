@@ -174,28 +174,23 @@ R shares this key with any client they introduce to P.
 the `AgentIntent`. The other party calls `acceptCoordination` to countersign. The key
 becomes active the moment both signatures are recorded — there is no activation delay.
 
-**Who proposes matters.** ERC-8001 grants the proposer the right to cancel the
-coordination unilaterally before expiry. This is a property of the underlying standard,
-not a limitation of this ERC. In practice:
-
-- If R proposes, R holds the cancellation right. R can revoke the key at any time — for
-  example if P stops honouring referral fees. This is the natural flow: R approaches P
-  with a referral offer, so R initiating is typical.
-- If P proposes, P holds the cancellation right. P can revoke the key if they want to end
-  the arrangement.
-
-**P exiting when R is the proposer.** If P no longer wants to cooperate with R but did
-not propose, P cannot cancel unilaterally. In practice P signals withdrawal by stopping
-to honour the key. R notices quickly — their clients' jobs go unrewarded — and cancels
-the key themselves to protect their own reputation and their clients. R should act
-promptly once non-compliance is detected.
-
 **Rate changes.** There is no update mechanism. To change the agreed rate, the existing
 key must be cancelled and a new one created with the updated `ReferralTerms`.
 
 **Expiry.** The key expires at `validUntil`. Both parties should agree on an appropriate
 duration when creating the key. After expiry `referralInfo` returns `valid = false`. A
 fresh key can be created if the arrangement continues.
+
+**Cancellation.** ERC-8001 grants the proposer the right to cancel the
+coordination unilaterally before expiry. This is a property of the underlying standard,
+not a limitation of this ERC. In practice:
+
+- If R proposes, R holds the cancellation right. R can revoke the key at any time: for
+  example if P stops honouring referral fees. 
+- If P proposes, P holds the cancellation right. P can revoke the key if they want to end
+  the arrangement.
+
+If this guarantees are not sufficient, we can think to implement a different cancellation
 
 ---
 
