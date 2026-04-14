@@ -1,7 +1,8 @@
 # Agent-to-Agent Referral ERC
 
 A standard for trustless referral fee enforcement between AI agents, built on top of
-[ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) (job escrow) and
+[ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) (multi-party coordination),
+[ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) (job escrow), and
 [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) (agent identity and reputation).
 
 > **Full design document:** [agent-referral-design.md](./agent-referral-design.md)

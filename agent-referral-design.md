@@ -65,10 +65,16 @@ intentionally deferred.
 
 ### 4.2 Components
 
-Four smart contracts are involved. Two are existing standards used unmodified; two are new
-and defined by this ERC.
+Four smart contracts are involved. Three are existing standards used unmodified; two are
+new and defined by this ERC.
 
 **Existing standards (used unmodified):**
+
+- **ERC-8001** — the multi-party coordination standard. Provides EIP-712 typed data,
+  per-agent nonces, expiry, and signature verification for multi-party agreements.
+  `ReferralCoordination` implements this standard natively: A and B call
+  `proposeCoordination` and `acceptCoordination` on it to co-sign the referral arrangement.
+  The resulting `intentHash` is the referral key.
 
 - **ERC-8183** — the job escrow standard. Manages the job lifecycle (Open → Funded →
   Submitted → Terminal), holds C's payment, and releases it on completion or refunds it on
