@@ -37,9 +37,19 @@ struct ReferralTerms {
 This structure is what A and B sign. Encoding it in a standard format means any contract
 or tool that understands this ERC can read and verify the terms without custom parsing.
 
-The constant `AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL")` is a label burned into
-the signed data. It identifies this as a referral agreement rather than any other kind of
-ERC-8001 coordination, so a contract can recognise and route it correctly.
+ERC-8001's `AgentIntent` struct contains a field called `coordinationType` — a `bytes32`
+slot explicitly reserved for downstream ERCs to identify what kind of coordination they
+are registering. This ERC defines that field's value as:
+
+```solidity
+bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
+```
+
+When A proposes the coordination, they set `intent.coordinationType = AGENT_REFERRAL_TYPE`.
+Because `coordinationType` is part of the struct that A signs, its value is
+cryptographically committed — A cannot later claim they signed something else. Any
+contract receiving the intent can check this field and immediately know it is a referral
+agreement rather than some other kind of ERC-8001 coordination.
 
 ### The coordination contract
 
