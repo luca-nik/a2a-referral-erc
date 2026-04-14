@@ -23,7 +23,7 @@ A and B co-sign a referral arrangement on-chain using ERC-8001. The result is a
 **referral key** — a 32-byte `intentHash` that anyone can query:
 
 ```solidity
-referralInfo(intentHash) → (provider, referrer, rateBps, valid)
+referralInfo(intentHash) → (provider, referrer, rateBps, valid, validUntil)
 ```
 
 That is the standard. A single read function backed by a cryptographic commitment.
@@ -46,21 +46,22 @@ sequenceDiagram
     participant C as C - Client
     participant RC as ReferralCoordination
 
-    note over A,RC: Phase 1 - A and B establish the referral credential
+    rect rgb(220, 240, 255)
+        note over A,RC: THIS ERC - credential layer
 
-    A->>RC: propose coordination with referrer=B, rateBps
-    B->>RC: sign acceptance
-    note over RC: intentHash is the referral key - queryable via referralInfo
+        A->>RC: propose coordination with referrer=B, rateBps, expiry
+        B->>RC: sign acceptance
+        note over RC: key locked - referralInfo(intentHash) now queryable by anyone
 
-    note over A,RC: Phase 2 - B introduces C and shares the key
+        B-->>C: share intentHash (off-chain)
+    end
 
-    B-->>C: share intentHash (off-chain)
+    rect rgb(240, 240, 240)
+        note over A,C: DOWNSTREAM IMPLEMENTATION - not part of this ERC
 
-    note over A,RC: Phase 3 - C works with A (implementation specific)
-
-    C->>A: create job, passing intentHash per A's instructions
-    note over A,C: A honours the referral per their advertised mechanism
-    A->>B: pay referral fee (trustless via hook or manual)
+        C->>A: create job passing intentHash per A's advertised instructions
+        A->>B: honour referral fee - trustless via hook or manual
+    end
 ```
 
 ---
