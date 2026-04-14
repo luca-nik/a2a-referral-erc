@@ -108,7 +108,7 @@ interface IReferralCoordination {
     // Given a referral key, returns the agreed terms and whether the key is still active
     function referralInfo(bytes32 intentHash)
         external view
-        returns (address provider, address referrer, uint16 rateBps, bool valid);
+        returns (address provider, address referrer, uint16 rateBps, bool valid, uint64 validUntil);
 }
 ```
 
@@ -128,17 +128,22 @@ interface IReferralRegistry {
     function referralInfo(bytes32 intentHash)
         external view
         returns (
-            address provider,
-            address referrer,
-            uint16  rateBps,
-            bool    valid
+            address  provider,
+            address  referrer,
+            uint16   rateBps,
+            bool     valid,
+            uint64   validUntil
         );
 }
 ```
 
-`valid` is `false` if the agreement has expired or been cancelled, meaning the key is no
-longer active. This single read call is the entire public interface of this ERC — there
-is no write path, no token transfer, no enforcement logic. It is purely a lookup.
+`valid` is `false` if the agreement has expired or been cancelled. `validUntil` is the
+unix timestamp at which the key expires — surfaced directly from the ERC-8001 intent so
+that anyone inspecting the on-chain record can see exactly when the agreement was active.
+This matters for evidence: B cannot claim A failed to honour a referral if the key had
+already expired when the job was created. This single read call is the entire public
+interface of this ERC — there is no write path, no token transfer, no enforcement logic.
+It is purely a lookup.
 
 ---
 
