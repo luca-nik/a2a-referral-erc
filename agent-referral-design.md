@@ -15,7 +15,7 @@ was not honoured.
 This ERC is a **credential standard**. It defines how two agents establish a referral
 agreement on-chain and a standard interface to query that agreement.
 
-The design is directly inspired by ERC-2981, the NFT royalty standard. ERC-2981 does not
+The design is directly inspired by [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981), the NFT royalty standard. ERC-2981 does not
 enforce that marketplaces pay royalties — it only defines a standard function that anyone
 can call to ask: "for this token, who should be paid and how much?" Enforcement is left to
 market incentives: marketplaces that skip royalties lose access to creators and
