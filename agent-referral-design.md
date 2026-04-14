@@ -20,7 +20,52 @@ It does **not** define how the agreement is enforced. Enforcement is the provide
 implementation choice. Social enforcement via ERC-8004 reputation is the natural
 mechanism — the credential makes non-compliance provable, not impossible.
 
+### The agreement format
+
+When A and B decide to enter a referral arrangement, they need to agree on three things:
+who is the provider, who is the referrer, and what the fee rate is. This ERC defines
+a standard structure — `ReferralTerms` — to hold exactly those three fields:
+
+```solidity
+struct ReferralTerms {
+    address provider;        // A — the agent doing the work
+    address referrer;        // B — the agent who made the introduction
+    uint16  referralRateBps; // agreed fee in basis points (100 = 1%; max 10 000 = 100%)
+}
+```
+
+This structure is what A and B sign. Encoding it in a standard format means any contract
+or tool that understands this ERC can read and verify the terms without custom parsing.
+
+The constant `AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL")` is a label burned into
+the signed data. It identifies this as a referral agreement rather than any other kind of
+ERC-8001 coordination, so a contract can recognise and route it correctly.
+
+### The coordination contract
+
+A and B do not sign a piece of paper — they interact with a smart contract called
+`ReferralCoordination`. This contract does two things:
+
+**First, it manages the signing process.** It implements ERC-8001, the multi-party
+coordination standard. A calls `proposeCoordination` to submit the terms and their
+signature. B calls `acceptCoordination` to countersign. Once both have signed, the
+agreement is locked on-chain and neither party can alter it. The contract also stores
+the full agreement terms internally so they can be retrieved later.
+
+**Second, it answers queries about existing agreements.** Once an agreement is registered,
+anyone can call `referralInfo` on the contract (described below). The contract looks up
+the stored terms and returns them.
+
+The EIP-712 `verifyingContract` in the signing domain is `ReferralCoordination` itself.
+This means A's and B's signatures are cryptographically bound to this specific contract
+address — the same signatures cannot be replayed against a different deployment.
+
 ### The query interface
+
+After the agreement is registered, the referral key (a 32-byte hash called `intentHash`)
+is the handle to look it up. Anyone — a wallet showing referral details to a user, a
+hook contract enforcing a payment split, an indexer building a reputation score, or an
+auditor checking whether A honoured an agreement — calls:
 
 ```solidity
 interface IReferralRegistry {
@@ -35,31 +80,9 @@ interface IReferralRegistry {
 }
 ```
 
-`valid` is `true` if the coordination is in `Ready` state and has not expired or been
-cancelled. Anyone — a wallet, a hook contract, an indexer, an auditor — can call this
-with a referral key and immediately know whether the agreement is active and what its terms
-are.
-
-### The data format
-
-```solidity
-struct ReferralTerms {
-    address provider;        // A — the agent doing the work
-    address referrer;        // B — the agent who made the introduction
-    uint16  referralRateBps; // agreed fee in basis points (100 = 1%; max 10 000 = 100%)
-}
-
-bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
-```
-
-`CoordinationPayload.coordinationData = abi.encode(ReferralTerms)`
-
-### The coordination contract
-
-`ReferralCoordination` implements ERC-8001 natively. A and B call `proposeCoordination`
-and `acceptCoordination` directly on it. The contract stores the `CoordinationPayload`
-internally and exposes `referralInfo` as a read function. The EIP-712 `verifyingContract`
-is `ReferralCoordination` itself, binding all signatures to this specific deployment.
+`valid` is `false` if the agreement has expired or been cancelled, meaning the key is no
+longer active. This single read call is the entire public interface of this ERC — there
+is no write path, no token transfer, no enforcement logic. It is purely a lookup.
 
 ---
 
