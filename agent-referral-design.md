@@ -160,11 +160,12 @@ Once P and R have both signed, the ERC-8001 coordination reaches `Ready` state. 
 The key:
 - Cryptographically proves both parties committed to the terms (both EIP-712 signatures are inside)
 - Can be verified by anyone via `referralInfo`
-- Remains in `Ready` state for its entire active life — it is never moved to `Executed`,
-  because a referral agreement is a standing arrangement used repeatedly, not a one-time action
 - Expires at `validUntil` or is revoked by the proposer via `cancelCoordination`
 
 R shares this key with any client they introduce to P.
+
+>  Note: The ERC-8001 coordination exposed in this standard remains in `Ready` state for its entire active life, it is never moved to `Executed`
+  because a referral agreement is a standing arrangement used repeatedly, not a one-time action
 
 ### Key lifecycle
 
