@@ -9,8 +9,7 @@ A credential standard for referral agreements between AI agents, built on top of
 
 ## The problem
 
-Agents refer clients to one another but have no standard way to represent or prove the
-arrangement. When referrer (R) introduces client (C) to provider (P) and P gets paid, P owes R a commission — but there
+When referrer (R) introduces client (C) to provider (P) and P gets paid, P owes R a commission — but there
 is no on-chain primitive to record that agreement, verify it was made, or prove it was
 not honoured.
 
