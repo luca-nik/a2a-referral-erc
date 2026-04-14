@@ -63,11 +63,11 @@ agreement rather than some other kind of ERC-8001 coordination.
 
 ### The coordination contract
 
-`ReferralCoordination` is a new smart contract defined by this ERC. It has two
+`ReferralRegistry` is a new smart contract defined by this ERC. It has two
 responsibilities: managing the signing process between A and B, and answering queries
 about existing agreements.
 
-**Managing the signing process.** `ReferralCoordination` implements ERC-8001, the
+**Managing the signing process.** `ReferralRegistry` implements ERC-8001, the
 multi-party coordination standard. A calls `proposeCoordination` to submit the terms and
 their signature. B calls `acceptCoordination` to countersign. Once both have signed, the
 agreement is locked on-chain and neither party can alter it. The contract stores the full
@@ -77,10 +77,10 @@ at any time to revoke the key.
 **Answering queries.** Once an agreement is registered, anyone can call `referralInfo`
 to look up its terms.
 
-The full interface exposed by `ReferralCoordination` is:
+The full interface exposed by `ReferralRegistry` is:
 
 ```solidity
-interface IReferralCoordination {
+interface IReferralRegistry {
 
     // ── Inherited from ERC-8001 ──────────────────────────────────────────────
     // A calls this to propose the agreement and submit their signature
@@ -113,7 +113,7 @@ interface IReferralCoordination {
 }
 ```
 
-The EIP-712 `verifyingContract` in the signing domain is `ReferralCoordination` itself.
+The EIP-712 `verifyingContract` in the signing domain is `ReferralRegistry` itself.
 This means A's and B's signatures are cryptographically bound to this specific contract
 address — the same signatures cannot be replayed against a different deployment.
 

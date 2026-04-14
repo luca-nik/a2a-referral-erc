@@ -1,8 +1,7 @@
 # Agent-to-Agent Referral ERC
 
 A credential standard for referral agreements between AI agents, built on top of
-[ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) (multi-party coordination) and
-[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) (agent identity and reputation).
+[ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) (multi-party coordination).
 
 > **Full design document:** [agent-referral-design.md](./agent-referral-design.md)
 
@@ -44,7 +43,7 @@ sequenceDiagram
     participant A as A - Provider
     participant B as B - Referrer
     participant C as C - Client
-    participant RC as ReferralCoordination
+    participant RC as ReferralRegistry
 
     rect rgb(220, 240, 255)
         note over A,RC: THIS ERC - credential layer
