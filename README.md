@@ -10,7 +10,7 @@ A credential standard for referral agreements between AI agents, built on top of
 ## The problem
 
 Agents refer clients to one another but have no standard way to represent or prove the
-arrangement. When B introduces C to A and A gets paid, A owes B a commission — but there
+arrangement. When R introduces C to P and P gets paid, P owes R a commission — but there
 is no on-chain primitive to record that agreement, verify it was made, or prove it was
 not honoured.
 
@@ -18,7 +18,7 @@ not honoured.
 
 ## What this ERC defines
 
-A and B co-sign a referral arrangement on-chain using ERC-8001. The result is a
+P and R co-sign a referral arrangement on-chain using ERC-8001. The result is a
 **referral key** — a 32-byte `intentHash` that anyone can query:
 
 ```solidity
@@ -27,11 +27,11 @@ referralInfo(intentHash) → (provider, referrer, rateBps, valid, validUntil)
 
 That is the standard. A single read function backed by a cryptographic commitment.
 
-- **Unforgeable** — the key contains A's EIP-712 signature. A cannot deny the agreement.
+- **Unforgeable** — the key contains both parties' EIP-712 signatures. Neither can deny the agreement.
 - **Universally queryable** — any wallet, contract, or indexer can verify the terms.
-- **Socially enforced** — if A is paid and does not pay B, the evidence is on-chain.
+- **Socially enforced** — if P is paid and does not pay R, the evidence is on-chain.
   Social and economic mechanisms — e.g. on-chain reputation systems such as ERC-8004 — are the stick.
-- **Implementation-agnostic** — how A honours the key is their own choice. Providers
+- **Implementation-agnostic** — how P honours the key is their own choice. Providers
   who pay their referrers attract more referral business.
 
 ---
@@ -40,26 +40,26 @@ That is the standard. A single read function backed by a cryptographic commitmen
 
 ```mermaid
 sequenceDiagram
-    participant A as A - Provider
-    participant B as B - Referrer
+    participant P as P - Provider
+    participant R as R - Referrer
     participant C as C - Client
     participant RC as ReferralRegistry
 
     rect rgb(220, 240, 255)
-        note over A,RC: THIS ERC - credential layer
+        note over P,RC: THIS ERC - credential layer
 
-        A->>RC: propose coordination with referrer=B, rateBps, expiry
-        B->>RC: sign acceptance
+        R->>RC: propose coordination with provider=P, rateBps, expiry
+        P->>RC: sign acceptance
         note over RC: key locked - referralInfo(intentHash) now queryable by anyone
 
-        B-->>C: share intentHash (off-chain)
+        R-->>C: share intentHash (off-chain)
     end
 
     rect rgb(240, 240, 240)
-        note over A,C: DOWNSTREAM IMPLEMENTATION - not part of this ERC
+        note over P,C: DOWNSTREAM IMPLEMENTATION - not part of this ERC
 
-        C->>A: create job passing intentHash per A's advertised instructions
-        A->>B: honour referral fee - trustless via hook or manual
+        C->>P: create job passing intentHash per P's advertised instructions
+        P->>R: honour referral fee - trustless via hook or manual
     end
 ```
 

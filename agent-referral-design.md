@@ -5,7 +5,7 @@
 ## 1. Problem
 
 Agents refer clients to one another but have no standard way to represent or prove the
-arrangement. When B introduces C to A and A gets paid, A owes B a commission — but today
+arrangement. When R introduces C to P and P gets paid, P owes R a commission — but today
 there is no on-chain primitive to record that agreement, verify it was made, or prove it
 was not honoured.
 
@@ -32,19 +32,19 @@ non-compliance provable, not impossible.
 
 ### The agreement format
 
-When A and B decide to enter a referral arrangement, they need to agree on three things:
+When P and R decide to enter a referral arrangement, they need to agree on three things:
 who is the provider, who is the referrer, and what the fee rate is. This ERC defines
 a standard structure — `ReferralTerms` — to hold exactly those three fields:
 
 ```solidity
 struct ReferralTerms {
-    address provider;        // A — the agent doing the work
-    address referrer;        // B — the agent who made the introduction
+    address provider;        // P — the agent doing the work
+    address referrer;        // R — the agent who made the introduction
     uint16  referralRateBps; // agreed fee in basis points (100 = 1%; max 10 000 = 100%)
 }
 ```
 
-This structure is what A and B sign. Encoding it in a standard format means any contract
+This structure is what P and R sign. Encoding it in a standard format means any contract
 or tool that understands this ERC can read and verify the terms without custom parsing.
 
 ERC-8001's `AgentIntent` struct contains a field called `coordinationType` — a `bytes32`
@@ -55,24 +55,29 @@ are registering. This ERC defines that field's value as:
 bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
 ```
 
-When A proposes the coordination, they set `intent.coordinationType = AGENT_REFERRAL_TYPE`.
-Because `coordinationType` is part of the struct that A signs, its value is
-cryptographically committed — A cannot later claim they signed something else. Any
+When the coordination is proposed, the proposer sets `intent.coordinationType = AGENT_REFERRAL_TYPE`.
+Because `coordinationType` is part of the struct that the proposer signs, its value is
+cryptographically committed — the proposer cannot later claim they signed something else. Any
 contract receiving the intent can check this field and immediately know it is a referral
 agreement rather than some other kind of ERC-8001 coordination.
 
 ### The coordination contract
 
 `ReferralRegistry` is a new smart contract defined by this ERC. It has two
-responsibilities: managing the signing process between A and B, and answering queries
+responsibilities: managing the signing process between P and R, and answering queries
 about existing agreements.
 
 **Managing the signing process.** `ReferralRegistry` implements ERC-8001, the
-multi-party coordination standard. A calls `proposeCoordination` to submit the terms and
-their signature. B calls `acceptCoordination` to countersign. Once both have signed, the
-agreement is locked on-chain and neither party can alter it. The contract stores the full
-agreement terms internally so they can be retrieved later. A can call `cancelCoordination`
-at any time to revoke the key.
+multi-party coordination standard. The proposer (P or R) calls `proposeCoordination` to
+submit the terms and their signature. The other party calls `acceptCoordination` to
+countersign. Once both have signed, the agreement is locked on-chain and neither party
+can alter it. The contract stores the full agreement terms internally so they can be
+retrieved later. The proposer can call `cancelCoordination` at any time to revoke the key
+(see §3 for the lifecycle implications of who proposes).
+
+`ReferralRegistry` MUST verify that `terms.provider` and `terms.referrer` exactly match
+the two addresses in `intent.participants`, and that `intent.agentId` is one of them.
+This ensures neither party can register terms that do not reflect the actual signers.
 
 **Answering queries.** Once an agreement is registered, anyone can call `referralInfo`
 to look up its terms.
@@ -83,20 +88,20 @@ The full interface exposed by `ReferralRegistry` is:
 interface IReferralRegistry {
 
     // ── Inherited from ERC-8001 ──────────────────────────────────────────────
-    // A calls this to propose the agreement and submit their signature
+    // Proposer (P or R) calls this to submit the terms and their signature
     function proposeCoordination(
         AgentIntent calldata intent,
         bytes calldata signature,
         CoordinationPayload calldata payload
     ) external returns (bytes32 intentHash);
 
-    // B calls this to countersign and lock the agreement
+    // Acceptor calls this to countersign and lock the agreement
     function acceptCoordination(
         bytes32 intentHash,
         AcceptanceAttestation calldata attestation
     ) external returns (bool allAccepted);
 
-    // A or B calls this to revoke the key
+    // Proposer calls this to revoke the key (see §3)
     function cancelCoordination(bytes32 intentHash, string calldata reason) external;
 
     // Returns the current state of an agreement (Ready, Cancelled, Expired, ...)
@@ -114,7 +119,7 @@ interface IReferralRegistry {
 ```
 
 The EIP-712 `verifyingContract` in the signing domain is `ReferralRegistry` itself.
-This means A's and B's signatures are cryptographically bound to this specific contract
+This means P's and R's signatures are cryptographically bound to this specific contract
 address — the same signatures cannot be replayed against a different deployment.
 
 ### The query interface
@@ -122,7 +127,7 @@ address — the same signatures cannot be replayed against a different deploymen
 After the agreement is registered, the referral key (a 32-byte hash called `intentHash`)
 is the handle to look it up. Anyone — a wallet showing referral details to a user, a
 hook contract enforcing a payment split, an indexer building a reputation score, or an
-auditor checking whether A honoured an agreement — calls:
+auditor checking whether P honoured an agreement — calls:
 
 ```solidity
 interface IReferralRegistry {
@@ -141,7 +146,7 @@ interface IReferralRegistry {
 `valid` is `false` if the agreement has expired or been cancelled. `validUntil` is the
 unix timestamp at which the key expires — surfaced directly from the ERC-8001 intent so
 that anyone inspecting the on-chain record can see exactly when the agreement was active.
-This matters for evidence: B cannot claim A failed to honour a referral if the key had
+This matters for evidence: R cannot claim P failed to honour a referral if the key had
 already expired when the job was created. This single read call is the entire public
 interface of this ERC — there is no write path, no token transfer, no enforcement logic.
 It is purely a lookup.
@@ -150,34 +155,65 @@ It is purely a lookup.
 
 ## 3. The referral key
 
-Once A proposes and B accepts, the ERC-8001 coordination reaches `Ready` state. The
+Once P and R have both signed, the ERC-8001 coordination reaches `Ready` state. The
 `intentHash` — a 32-byte value — is the referral key.
 
 The key:
-- Cryptographically proves A committed to the rate (A's EIP-712 signature is inside)
-- Proves B agreed to the arrangement (B's acceptance signature is inside)
+- Cryptographically proves both parties committed to the terms (both EIP-712 signatures are inside)
 - Can be verified by anyone via `referralInfo`
-- Remains valid until A or B revokes it (`cancelCoordination`) or it expires
+- Remains in `Ready` state for its entire active life — it is never moved to `Executed`,
+  because a referral agreement is a standing arrangement used repeatedly, not a one-time action
+- Expires at `validUntil` or is revoked by the proposer via `cancelCoordination`
 
-B shares this key with any client they introduce to A.
+R shares this key with any client they introduce to P.
+
+### Key lifecycle
+
+**Creation.** Either P or R may initiate the arrangement. The proposer calls
+`proposeCoordination` on `ReferralRegistry`, submitting the `ReferralTerms` and signing
+the `AgentIntent`. The other party calls `acceptCoordination` to countersign. The key
+becomes active the moment both signatures are recorded — there is no activation delay.
+
+**Who proposes matters.** ERC-8001 grants the proposer the right to cancel the
+coordination unilaterally before expiry. This is a property of the underlying standard,
+not a limitation of this ERC. In practice:
+
+- If R proposes, R holds the cancellation right. R can revoke the key at any time — for
+  example if P stops honouring referral fees. This is the natural flow: R approaches P
+  with a referral offer, so R initiating is typical.
+- If P proposes, P holds the cancellation right. P can revoke the key if they want to end
+  the arrangement.
+
+**P exiting when R is the proposer.** If P no longer wants to cooperate with R but did
+not propose, P cannot cancel unilaterally. In practice P signals withdrawal by stopping
+to honour the key. R notices quickly — their clients' jobs go unrewarded — and cancels
+the key themselves to protect their own reputation and their clients. R should act
+promptly once non-compliance is detected.
+
+**Rate changes.** There is no update mechanism. To change the agreed rate, the existing
+key must be cancelled and a new one created with the updated `ReferralTerms`.
+
+**Expiry.** The key expires at `validUntil`. Both parties should agree on an appropriate
+duration when creating the key. After expiry `referralInfo` returns `valid = false`. A
+fresh key can be created if the arrangement continues.
 
 ---
 
 ## 4. Properties
 
-- **Cryptographically unforgeable.** The key is an ERC-8001 `intentHash` backed by A's
-  EIP-712 signature. A cannot deny having agreed to the terms.
+- **Cryptographically unforgeable.** The key is an ERC-8001 `intentHash` backed by both
+  parties' EIP-712 signatures. Neither can deny having agreed to the terms.
 
 - **Universally queryable.** `referralInfo(intentHash)` is a standard read call. Any
   tool, wallet, contract, or indexer can verify a referral arrangement without custom
   integration.
 
-- **Socially enforced.** If A receives payment for a job introduced by B and does not pay
-  B, B has irrefutable on-chain evidence: the signed key (A committed), the job completion
-  event (A was paid), and the absence of any transfer to B. Social and economic mechanisms — e.g. on-chain reputation systems — are the
+- **Socially enforced.** If P receives payment for a job introduced by R and does not pay
+  R, R has irrefutable on-chain evidence: the signed key (P committed), the job completion
+  event (P was paid), and the absence of any transfer to R. Social and economic mechanisms — e.g. on-chain reputation systems — are the
   stick.
 
-- **Implementation-agnostic.** How A accepts and honours the key is A's own choice.
+- **Implementation-agnostic.** How P accepts and honours the key is P's own choice.
   Providers who honour referrals attract more business from referrers; this is the market
   incentive that replaces on-chain enforcement.
 
@@ -185,24 +221,24 @@ B shares this key with any client they introduce to A.
 
 ## 5. How a provider can use this (non-normative)
 
-The standard defines the credential. What A does with it is their implementation. Three
+The standard defines the credential. What P does with it is their implementation. Three
 examples of increasing commitment:
 
-**Vanilla convention.** A instructs clients to include the referral key in the ERC-8183
-job description as `referral:0x<intentHash>`. A monitors completed jobs and pays B
+**Vanilla convention.** P instructs clients to include the referral key in the ERC-8183
+job description as `referral:0x<intentHash>`. P monitors completed jobs and pays R
 manually. Simple, no extra contracts, fully compatible with any ERC-8183 deployment.
 
-**Hooked ERC-8183.** A deploys an ERC-8183 hook that extracts the `intentHash` from
+**Hooked ERC-8183.** P deploys an ERC-8183 hook that extracts the `intentHash` from
 `optParams` on `fund`, calls `referralInfo` to verify the key and read the rate, and
 splits the payment automatically on `complete`. C passes the key as `optParams`. Fully
-trustless; the split is atomic. A advertises the hook address so clients know to use it.
+trustless; the split is atomic. P advertises the hook address so clients know to use it.
 
-**Custom wrapper.** A builds a `createJobWithReferral(intentHash, ...)` entry point that
+**Custom wrapper.** P builds a `createJobWithReferral(intentHash, ...)` entry point that
 wires up the split at job creation time. C makes one call. More friction to deploy but
 the cleanest client experience.
 
-A advertises their mechanism in their ERC-8004 profile (e.g. metadata key
-`"referralEndpoint"` or `"referralInstructions"`). B reads it before introducing clients
+P advertises their mechanism in their ERC-8004 profile (e.g. metadata key
+`"referralEndpoint"` or `"referralInstructions"`). R reads it before introducing clients
 so C knows exactly how to submit the key.
 
 ---
@@ -212,8 +248,8 @@ so C knows exactly how to submit the key.
 Two conventions proposed by this ERC, using ERC-8004's existing `setMetadata` /
 `getMetadata` mechanism:
 
-- **`"referralRateBps"`** — A's default referral rate, encoded as `abi.encode(uint16)`.
-  Lets B discover A's rate before creating the key. *This key is not part of the ERC-8004
+- **`"referralRateBps"`** — P's default referral rate, encoded as `abi.encode(uint16)`.
+  Lets R discover P's rate before creating the key. *This key is not part of the ERC-8004
   specification; it is proposed here as a standard convention.*
 
 - **`tag1 = "referral"`** — for post-job feedback entries in ERC-8004's reputation
