@@ -80,7 +80,9 @@ interface IReferralRegistry {
     ) external returns (bool allAccepted);
 
     /// @notice Revoke an active referral key.
-    /// @dev Per ERC-8001 semantics, only the proposer may cancel before expiry.
+    /// @dev Either party (P or R) may cancel at any time before expiry.
+    ///  This overrides ERC-8001's default proposer-only cancellation rule;
+    ///  see the Rationale section for justification.
     function cancelCoordination(bytes32 intentHash, string calldata reason) external;
 
     /// @notice Return the current lifecycle state of a coordination.
@@ -144,7 +146,7 @@ These checks ensure the registered terms faithfully reflect the actual signers a
 
 **Active state.** The coordination MUST remain in `Ready` state for its entire active life. It MUST NOT be transitioned to `Executed`. A referral agreement is a standing arrangement used across multiple client interactions, not a one-time action.
 
-**Cancellation.** Per [ERC-8001](./erc-8001.md), only the proposer may cancel before expiry. Either P or R may act as proposer, so the choice of who proposes determines who holds the unilateral cancellation right. After expiry, any caller may cancel.
+**Cancellation.** This ERC overrides [ERC-8001](./erc-8001.md)'s default cancellation rule. Either P or R MUST be permitted to call `cancelCoordination` before expiry, regardless of who acted as proposer. `ReferralRegistry` MUST revert if the caller is not `terms.provider` or `terms.referrer`. After expiry, any caller MAY cancel, consistent with ERC-8001.
 
 **Rate changes.** There is no update mechanism. To modify the agreed rate, the existing key MUST be cancelled and a new one created with updated `ReferralTerms`.
 
@@ -166,9 +168,13 @@ Requiring on-chain enforcement (e.g. automatic payment splits) would couple this
 
 ERC-8001 provides exactly the primitives needed: EIP-712 typed signatures from both parties, monotonic nonces for replay prevention, and a deterministic `intentHash` that serves as the referral key. Using ERC-8001 avoids reinventing bilateral signing and gives the key a well-defined lifecycle.
 
-### Proposer asymmetry
+### Symmetric cancellation
 
-ERC-8001 grants only the proposer the right to cancel before expiry. This ERC does not override that rule, because it is not a limitation in practice: either P or R can choose to be the proposer, so the cancellation right is negotiated at setup time. Overriding ERC-8001's cancellation semantics would constitute a deliberate spec deviation and should be discussed with the community before adoption.
+[ERC-8001](./erc-8001.md) grants only the proposer the right to cancel before expiry. This ERC deliberately overrides that rule to allow either P or R to cancel at any time.
+
+The justification is grounded in the nature of the agreement. ERC-8001 is a general multi-party coordination framework; its proposer-only cancellation rule makes sense where the proposer is the natural owner of the coordination. A referral arrangement is different: it is a bilateral agreement between equals, and either party may have a legitimate reason to exit — P may wish to stop accepting referrals from R, and R may wish to stop sending clients to a non-paying P. Tying the exit right to who happened to propose introduces friction that is irrelevant to the business relationship and creates practical problems in the adversarial case.
+
+The implementation overhead is minimal: `ReferralRegistry` checks `msg.sender == terms.provider || msg.sender == terms.referrer` in `cancelCoordination`, using the already-stored `ReferralTerms`. This is a scoped, principled deviation from ERC-8001, limited to the cancellation check.
 
 ### `validUntil` in `referralInfo`
 
