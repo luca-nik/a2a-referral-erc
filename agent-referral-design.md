@@ -71,8 +71,7 @@ multi-party coordination standard. The proposer (P or R) calls `proposeCoordinat
 submit the terms and their signature. The other party calls `acceptCoordination` to
 countersign. Once both have signed, the agreement is locked on-chain and neither party
 can alter it. The contract stores the full agreement terms internally so they can be
-retrieved later. The proposer can call `cancelCoordination` at any time to revoke the key
-(see §3 for the lifecycle implications of who proposes).
+retrieved later. Either P or R can call `cancelCoordination` at any time to revoke the key.
 
 `ReferralRegistry` MUST verify that `terms.provider` and `terms.referrer` exactly match
 the two addresses in `intent.participants`, and that `intent.agentId` is one of them.
@@ -100,7 +99,7 @@ interface IReferralRegistry {
         AcceptanceAttestation calldata attestation
     ) external returns (bool allAccepted);
 
-    // Proposer calls this to revoke the key (see §3)
+    // Either P or R may call this to revoke the key
     function cancelCoordination(bytes32 intentHash, string calldata reason) external;
 
     // Returns the current state of an agreement (Ready, Cancelled, Expired, ...)
@@ -160,7 +159,7 @@ Once P and R have both signed, the ERC-8001 coordination reaches `Ready` state. 
 The key:
 - Cryptographically proves both parties committed to the terms (both EIP-712 signatures are inside)
 - Can be verified by anyone via `referralInfo`
-- Expires at `validUntil` or is revoked by the proposer via `cancelCoordination`
+- Expires at `validUntil` or is revoked by either party via `cancelCoordination`
 
 R shares this key with any client they introduce to P.
 
