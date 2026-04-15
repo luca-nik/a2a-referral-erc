@@ -2,7 +2,7 @@
 eip: TBD
 title: Agent Referral
 description: A way to record and retrieve referral fee agreement information between agents to enable universal referral fee support in agentic commerce.
-author: luca-nik (@luca-nik)
+author: CryptoEconLab
 discussions-to: TBD
 status: Draft
 type: Standards Track
