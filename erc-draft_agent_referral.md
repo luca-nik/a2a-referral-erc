@@ -13,7 +13,7 @@ requires: 165, 8001
 
 ## Abstract
 
-This ERC defines a credential standard for referral fee agreements between autonomous agents. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure on-chain via [ERC-8001](./erc-8001.md), producing a 32-byte referral key (`intentHash`). Anyone can verify the terms of an active agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, agreed fee rate in basis points, validity status, and expiry timestamp. Referral fee payment is voluntary; this ERC defines only the credential format and query interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](./erc-2981.md) for NFT royalties.
+This ERC defines a credential standard for referral fee agreements between autonomous agents. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure on-chain via [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001), producing a 32-byte referral key (`intentHash`). Anyone can verify the terms of an active agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, agreed fee rate in basis points, validity status, and expiry timestamp. Referral fee payment is voluntary; this ERC defines only the credential format and query interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
 
 ## Motivation
 
@@ -33,7 +33,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
 ```
 
-`AgentIntent` is the struct defined by [ERC-8001](./erc-8001.md) that the proposer signs when initiating a coordination. It contains a `coordinationType` field — a `bytes32` slot that ERC-8001 reserves explicitly for downstream ERCs to identify what kind of coordination they are registering.
+`AgentIntent` is the struct defined by [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) that the proposer signs when initiating a coordination. It contains a `coordinationType` field — a `bytes32` slot that ERC-8001 reserves explicitly for downstream ERCs to identify what kind of coordination they are registering.
 
 `AGENT_REFERRAL_TYPE` is the value this ERC assigns to that field. The proposer MUST set `intent.coordinationType = AGENT_REFERRAL_TYPE` when calling `proposeCoordination` on `ReferralRegistry`. This serves two purposes:
 
@@ -54,7 +54,7 @@ struct ReferralTerms {
 
 ### Interface
 
-The types `AgentIntent`, `CoordinationPayload`, `AcceptanceAttestation`, and `Status` are defined in [ERC-8001](./erc-8001.md) and used here as imported.
+The types `AgentIntent`, `CoordinationPayload`, `AcceptanceAttestation`, and `Status` are defined in [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) and used here as imported.
 
 Compliant contracts MUST implement `IReferralRegistry`:
 
@@ -153,7 +153,7 @@ These checks ensure the registered terms faithfully reflect the actual signers a
 
 **Active state.** The coordination MUST remain in `Ready` state for its entire active life. It MUST NOT be transitioned to `Executed`. A referral agreement is a standing arrangement used across multiple client interactions, not a one-time action.
 
-**Cancellation.** This ERC overrides [ERC-8001](./erc-8001.md)'s default cancellation rule. Either P or R MUST be permitted to call `cancelCoordination` before expiry, regardless of who acted as proposer. `ReferralRegistry` MUST revert if the caller is not `terms.provider` or `terms.referrer`. After expiry, any caller MAY cancel, consistent with ERC-8001.
+**Cancellation.** This ERC overrides [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001)'s default cancellation rule. Either P or R MUST be permitted to call `cancelCoordination` before expiry, regardless of who acted as proposer. `ReferralRegistry` MUST revert if the caller is not `terms.provider` or `terms.referrer`. After expiry, any caller MAY cancel, consistent with ERC-8001.
 
 **Rate changes.** There is no update mechanism. To modify the agreed rate, the existing key MUST be cancelled and a new one created with updated `ReferralTerms`.
 
@@ -161,7 +161,7 @@ These checks ensure the registered terms faithfully reflect the actual signers a
 
 ### ERC-165 support
 
-Compliant contracts SHOULD implement [ERC-165](./eip-165.md). The `interfaceId` for the `referralInfo` extension is `bytes4(keccak256("referralInfo(bytes32)"))`.
+Compliant contracts SHOULD implement [ERC-165](https://eips.ethereum.org/EIPS/eip-165). The `interfaceId` for this ERC is `bytes4(keccak256("referralInfo(bytes32)"))`. A contract returning `true` for this `interfaceId` declares full compliance with this ERC, including the symmetric `cancelCoordination` rule defined in the Key lifecycle section above.
 
 ---
 
@@ -177,7 +177,7 @@ ERC-8001 provides exactly the primitives needed: EIP-712 typed signatures from b
 
 ### Symmetric cancellation
 
-[ERC-8001](./erc-8001.md) grants only the proposer the right to cancel before expiry. This ERC deliberately overrides that rule to allow either P or R to cancel at any time.
+[ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) grants only the proposer the right to cancel before expiry. This ERC deliberately overrides that rule to allow either P or R to cancel at any time.
 
 The justification is grounded in the nature of the agreement. ERC-8001 is a general multi-party coordination framework; its proposer-only cancellation rule makes sense where the proposer is the natural owner of the coordination. A referral arrangement is different: it is a bilateral agreement between equals, and either party may have a legitimate reason to exit — P may wish to stop accepting referrals from R, and R may wish to stop sending clients to a non-paying P. Tying the exit right to who happened to propose introduces friction that is irrelevant to the business relationship and creates practical problems in the adversarial case.
 
