@@ -33,7 +33,12 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
 ```
 
-This value MUST be placed in `AgentIntent.coordinationType` when proposing a referral coordination on `ReferralRegistry`. Because `coordinationType` is part of the signed struct, its value is cryptographically committed at proposal time.
+`AgentIntent` is the struct defined by [ERC-8001](./erc-8001.md) that the proposer signs when initiating a coordination. It contains a `coordinationType` field — a `bytes32` slot that ERC-8001 reserves explicitly for downstream ERCs to identify what kind of coordination they are registering.
+
+`AGENT_REFERRAL_TYPE` is the value this ERC assigns to that field. The proposer MUST set `intent.coordinationType = AGENT_REFERRAL_TYPE` when calling `proposeCoordination` on `ReferralRegistry`. This serves two purposes:
+
+- **Identification.** Any contract or indexer can inspect `coordinationType` and immediately know the coordination is a referral agreement, without parsing the opaque `coordinationData`.
+- **Commitment.** Because `coordinationType` is part of the struct the proposer signs, its value is cryptographically bound to their signature. The proposer cannot later claim they signed a different kind of coordination.
 
 ### Data types
 
