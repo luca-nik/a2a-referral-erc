@@ -125,21 +125,7 @@ address — the same signatures cannot be replayed against a different deploymen
 After the agreement is registered, the referral key (a 32-byte hash called `intentHash`)
 is the handle to look it up. Anyone — a wallet showing referral details to a user, a
 hook contract enforcing a payment split, an indexer building a reputation score, or an
-auditor checking whether P honoured an agreement — calls:
-
-```solidity
-interface IReferralRegistry {
-    function referralInfo(bytes32 intentHash)
-        external view
-        returns (
-            address  provider,
-            address  referrer,
-            uint16   rateBps,
-            bool     valid,
-            uint64   validUntil
-        );
-}
-```
+auditor checking whether P honoured an agreement — calls `referralInfo(intentHash)`.
 
 `valid` is `false` if the agreement has expired or been cancelled. `validUntil` is the
 unix timestamp at which the key expires — surfaced directly from the ERC-8001 intent so
@@ -163,8 +149,7 @@ The key:
 
 R shares this key with any client they introduce to P.
 
->  Note: The ERC-8001 coordination exposed in this standard remains in `Ready` state for its entire active life, it is never moved to `Executed`
-  because a referral agreement is a standing arrangement used repeatedly, not a one-time action
+> Note: The ERC-8001 coordination remains in `Ready` state for its entire active life — it is never moved to `Executed` because a referral agreement is a standing arrangement used repeatedly, not a one-time action.
 
 ### Key lifecycle
 

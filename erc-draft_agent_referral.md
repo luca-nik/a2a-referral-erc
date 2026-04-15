@@ -49,6 +49,8 @@ struct ReferralTerms {
 
 ### Interface
 
+The types `AgentIntent`, `CoordinationPayload`, `AcceptanceAttestation`, and `Status` are defined in [ERC-8001](./erc-8001.md) and used here as imported.
+
 Compliant contracts MUST implement `IReferralRegistry`:
 
 ```solidity
