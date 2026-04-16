@@ -41,6 +41,14 @@ This requires changes to:
 
 ---
 
-## 4. Further additions
+## 4. Avoid re-storing `ReferralTerms` fields
+
+`referralInfo` currently implies a separate storage slot for `provider`, `referrer`, and `rateBps`. But these values are already encoded in `CoordinationPayload.coordinationData`, whose hash is committed to in the signed `AgentIntent` via `payloadHash`. Storing them again is redundant.
+
+**Fix:** `referralInfo` should decode the return values directly from the `coordinationData` committed at proposal time, rather than maintaining a duplicate copy. The spec sentence "provider, referrer, and rateBps MUST equal the values from the stored ReferralTerms" should be replaced with "the values returned MUST be decoded from the `coordinationData` committed at proposal time."
+
+---
+
+## 5. Further additions
 
 _Space reserved for additional improvements raised during review._
