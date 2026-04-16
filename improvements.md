@@ -49,6 +49,18 @@ This requires changes to:
 
 ---
 
-## 5. Further additions
+## 5. Two-step on-chain flow inherited from ERC-8001
+
+ERC-8001 requires each party to independently submit their signature on-chain (`proposeCoordination` → `acceptCoordination`). There is no single-transaction path where both signatures are submitted at once.
+
+An off-chain aggregation model — where both parties sign off-chain and one submits both signatures in a single transaction — would be cheaper and simpler. The tradeoff is that one party controls the submission and could withhold it, whereas ERC-8001's two-step gives each party independent liveness.
+
+**Options:**
+- Raise as a suggested improvement to ERC-8001 (add a `proposeWithAcceptance` or similar single-transaction path)
+- Extend `ReferralRegistry` with its own single-transaction registration function that accepts both signatures at once, as a `ReferralRegistry`-specific convenience on top of ERC-8001
+
+---
+
+## 6. Further additions
 
 _Space reserved for additional improvements raised during review._
