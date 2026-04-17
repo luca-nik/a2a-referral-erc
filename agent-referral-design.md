@@ -39,7 +39,8 @@ a standard structure — `ReferralTerms` — to hold exactly those three fields:
 struct ReferralTerms {
     address provider;        // P — the agent doing the work
     address referrer;        // R — the agent who made the introduction
-    uint16  referralRateBps; // agreed fee in basis points (100 = 1%; max 10 000 = 100%)
+    uint16  referralRate; // agreed fee as a fraction of type(uint16).max
+                          // fee fraction = referralRate / 65535; all values valid
 }
 ```
 
@@ -112,7 +113,7 @@ interface IReferralRegistry {
     // Given a referral key, returns the agreed terms and whether the key is still active
     function referralInfo(bytes32 intentHash)
         external view
-        returns (address provider, address referrer, uint16 rateBps, bool valid, uint64 validUntil);
+        returns (address provider, address referrer, uint16 rate, bool valid, uint64 validUntil);
 }
 ```
 
@@ -224,7 +225,7 @@ so C knows exactly how to submit the key.
 Two conventions proposed by this ERC, using ERC-8004's existing `setMetadata` /
 `getMetadata` mechanism:
 
-- **`"referralRateBps"`** — P's default referral rate, encoded as `abi.encode(uint16)`.
+- **`"referralRate"`** — P's default referral rate, encoded as `abi.encode(uint16)`. The value is a fraction of `type(uint16).max` (65535 = 100%).
   Lets R discover P's rate before creating the key. *This key is not part of the ERC-8004
   specification; it is proposed here as a standard convention.*
 

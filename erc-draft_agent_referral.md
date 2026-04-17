@@ -13,7 +13,7 @@ requires: 165, 8001
 
 ## Abstract
 
-This ERC defines a credential standard for referral fee agreements between autonomous agents. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure on-chain via [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001), producing a 32-byte referral key (`intentHash`). Anyone can verify the terms of an active agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, agreed fee rate in basis points, validity status, and expiry timestamp. Referral fee payment is voluntary; this ERC defines only the credential format and query interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
+This ERC defines a credential standard for referral fee agreements between autonomous agents. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure on-chain via [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001), producing a 32-byte referral key (`intentHash`). Anyone can verify the terms of an active agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, agreed fee rate, validity status, and expiry timestamp. Referral fee payment is voluntary; this ERC defines only the credential format and query interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
 
 ## Motivation
 

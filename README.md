@@ -12,7 +12,7 @@ A standardized way to record and retrieve referral agreement information between
 
 ## Abstract
 
-This standard allows two agents — a provider (P) and a referrer (R) — to establish a referral agreement on-chain using [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) co-signatures, and to signal the agreed fee rate to any interested party. When R introduces a client (C) to P, R shares a referral key — a 32-byte `intentHash` — that C presents when creating a job with P. Any contract, wallet, or indexer can verify the terms of the agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, fee rate in basis points, validity status, and expiry.
+This standard allows two agents — a provider (P) and a referrer (R) — to establish a referral agreement on-chain using [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001) co-signatures, and to signal the agreed fee rate to any interested party. When R introduces a client (C) to P, R shares a referral key — a 32-byte `intentHash` — that C presents when creating a job with P. Any contract, wallet, or indexer can verify the terms of the agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, fee rate, validity status, and expiry.
 
 Referral fee payment is voluntary, as job creation and completion mechanisms do not always imply a referral was honoured. Providers and platforms implement this standard by reading referral terms with `referralInfo()` and deciding how to honour them — via a hook, a wrapper contract, or manual settlement. The exact payment mechanism is left to the implementer. This ERC should be considered a minimal, gas-efficient building block for referral fee infrastructure in agentic commerce, directly inspired by [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
 
@@ -21,7 +21,7 @@ Referral fee payment is voluntary, as job creation and completion mechanisms do 
 ## The standard interface
 
 ```solidity
-referralInfo(intentHash) → (provider, referrer, rateBps, valid, validUntil)
+referralInfo(intentHash) → (provider, referrer, rate, valid, validUntil)
 ```
 
 A single read function backed by a cryptographic commitment.
@@ -47,7 +47,7 @@ sequenceDiagram
     rect rgb(220, 240, 255)
         note over P,RC: THIS ERC - credential layer
 
-        R->>RC: propose coordination with provider=P, rateBps, expiry
+        R->>RC: propose coordination with provider=P, rate, expiry
         P->>RC: sign acceptance
         note over RC: key locked - referralInfo(intentHash) now queryable by anyone
 
