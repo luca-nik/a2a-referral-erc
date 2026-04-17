@@ -44,13 +44,15 @@ bytes32 constant AGENT_REFERRAL_TYPE = keccak256("AGENT_REFERRAL");
 
 ```solidity
 struct ReferralTerms {
-    address provider;        // P — the agent performing the work
-    address referrer;        // R — the agent who made the introduction
-    uint16  referralRateBps; // agreed fee in basis points (0–10 000)
+    address provider;     // P — the agent performing the work
+    address referrer;     // R — the agent who made the introduction
+    uint16  referralRate; // agreed fee as a fraction of type(uint16).max
+                          // fee fraction = referralRate / 65535
+                          // 0 = 0%, 65535 = 100%; all values are valid
 }
 ```
 
-`referralRateBps` MUST NOT exceed `10_000` (100%). `ReferralTerms` is ABI-encoded and placed in `CoordinationPayload.coordinationData`.
+`ReferralTerms` is ABI-encoded and placed in `CoordinationPayload.coordinationData`. All `uint16` values for `referralRate` are valid; there is no invalid range.
 
 ### Interface
 
@@ -109,7 +111,8 @@ interface IReferralRegistry {
     /// @param intentHash  The 32-byte referral key produced by proposeCoordination.
     /// @return provider   Address of the agent performing the work (P).
     /// @return referrer   Address of the agent who made the introduction (R).
-    /// @return rateBps    Agreed referral fee in basis points (0–10 000).
+    /// @return rate       Agreed referral fee as a fraction of type(uint16).max.
+    ///                    Fee fraction = rate / 65535. All values 0–65535 are valid.
     /// @return valid      True if the key is in Ready state and has not expired.
     /// @return validUntil Unix timestamp at which the key expires.
     function referralInfo(bytes32 intentHash)
@@ -117,7 +120,7 @@ interface IReferralRegistry {
         returns (
             address  provider,
             address  referrer,
-            uint16   rateBps,
+            uint16   rate,
             bool     valid,
             uint64   validUntil
         );
@@ -130,9 +133,8 @@ In addition to the base ERC-8001 requirements, `ReferralRegistry` MUST revert if
 
 - `intent.coordinationType != AGENT_REFERRAL_TYPE`;
 - `payload.coordinationData` does not decode to a valid `ReferralTerms`;
-- `terms.referralRateBps > 10_000`;
-- `intent.participants` does not contain exactly two addresses;
-- the set `{terms.provider, terms.referrer}` does not equal the set of addresses in `intent.participants`;
+- `terms.provider` or `terms.referrer` is the zero address, or they are equal;
+- `intent.participants` does not equal `[terms.provider, terms.referrer]` sorted ascending — the two participants are derived from the terms fields, making any other participant count unrepresentable;
 - `intent.agentId` is not equal to `terms.provider` or `terms.referrer`.
 
 These checks ensure the registered terms faithfully reflect the actual signers and that no party can forge a credential on behalf of another.
@@ -145,7 +147,7 @@ These checks ensure the registered terms faithfully reflect the actual signers a
 - `valid` MUST be `true` if and only if the coordination is in `Ready` state and `block.timestamp < validUntil`.
 - `valid` MUST be `false` if the coordination is `Cancelled` or `Expired`.
 - `validUntil` MUST equal `AgentIntent.expiry` as submitted at proposal time.
-- `provider`, `referrer`, and `rateBps` MUST equal the values from the stored `ReferralTerms`.
+- `provider`, `referrer`, and `rate` MUST be decoded from the `coordinationData` committed at proposal time.
 
 ### Key lifecycle
 
@@ -195,7 +197,25 @@ Placing a typed label in `AgentIntent.coordinationType` — a field explicitly r
 
 ## Backwards Compatibility
 
-No backward compatibility issues found. This ERC introduces a new contract interface and does not modify any existing standard.
+This ERC introduces a new contract interface and does not modify any existing standard.
+
+---
+
+## Reference Implementation
+
+A reference implementation is provided in [`assets/contracts/ReferralRegistry.sol`](../assets/contracts/ReferralRegistry.sol).
+
+`ReferralRegistry` inherits from the ERC-8001 reference implementation (`AgentCoordination`, [ethereum/ERCs — assets/erc-8001/contracts](https://github.com/ethereum/ERCs/tree/master/assets/erc-8001/contracts)) and adds approximately 110 lines of referral-specific logic:
+
+- `proposeCoordination` override — decodes `ReferralTerms` from `coordinationData` and enforces the six validation rules before delegating to the base.
+- `cancelCoordination` override — replaces proposer-only cancellation with a check against `terms.provider` and `terms.referrer`.
+- `referralInfo` — reads `CoordinationState` and the stored `ReferralTerms` and returns the five values defined by this ERC.
+
+The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking, signature verification, and the `Proposed → Ready` state transition. None of that logic is duplicated in `ReferralRegistry`.
+
+**Term storage.** `ReferralTerms` are decoded from `coordinationData` inside `proposeCoordination` and stored in a `mapping(bytes32 => ReferralTerms) _referralTerms` keyed by `intentHash`. The write happens in the same transaction as the base's `states[intentHash]` write, so the two mappings are always consistent: if the base reverts (bad signature, duplicate nonce, etc.) the whole transaction reverts and `_referralTerms` is never touched. `referralInfo` then performs two storage reads — one from `_referralTerms`, one from the base's `states` — with no decoding overhead at query time. The `coordinationData` bytes are not retained; only the decoded struct and the `payloadHash` commitment (stored by the base) are kept.
+
+**Required change to ERC-8001 reference.** `AgentCoordination.proposeCoordination` and `AgentCoordination.cancelCoordination` must be marked `virtual` for `ReferralRegistry` to override them. This is a two-character change to the base and is proposed as a suggested improvement to ERC-8001 (see section 7 of the design document).
 
 ---
 
@@ -209,7 +229,7 @@ No backward compatibility issues found. This ERC introduces a new contract inter
 
 **Stale key checks.** Callers that use `referralInfo` to gate payment logic should verify both `valid == true` and that `validUntil` was in the future at the time the job was created. Checking only `valid` at settlement time is insufficient if the key expired between job creation and completion.
 
-**Rate bounds.** `referralRateBps` is validated to not exceed `10_000` at registration. Downstream payment implementations should re-validate this bound before computing fee amounts to guard against any future upgrade paths that might bypass registration checks.
+**Rate encoding.** `referralRate` uses the full `uint16` range: `0` = 0%, `65535` = 100%. Any registered key is guaranteed to carry a valid rate — no cap check is possible or necessary. Downstream implementations compute the fee as `amount * referralRate / 65535`.
 
 **Proposer identity.** The validation rules ensure `intent.agentId` matches either `terms.provider` or `terms.referrer`. Without this check, a third party could register an agreement on behalf of two agents who never interacted with `ReferralRegistry`.
 
