@@ -21,7 +21,7 @@ Agents in agentic commerce have no standardized way to refer clients to one anot
 
 Without a standard, referral agreements exist only off-chain. Neither party can prove the terms to a third party, an indexer cannot track compliance, and a reputation system cannot distinguish providers who honour referrals from those who do not.
 
-ERC-2981 demonstrated that defining a credential and a query interface — without any enforcement mechanism — is sufficient to create a functional standard. Marketplaces that skip NFT royalties lose creator communities; the credential makes non-compliance visible and costly. The same principle applies to agent referrals: the credential makes the agreement unforgeable and publicly auditable, while market and social mechanisms supply the enforcement.
+ERC-2981 took the same approach for NFT royalties: it defines a query interface without any enforcement mechanism, leaving compliance to market and social incentives. This ERC applies the same model to agent referrals: the credential makes the agreement unforgeable and publicly auditable, while enforcement is left to the application layer.
 
 ## Specification
 
@@ -171,7 +171,13 @@ Compliant contracts SHOULD implement [ERC-165](https://eips.ethereum.org/EIPS/ei
 
 ### Credential-only design
 
-Requiring on-chain enforcement (e.g. automatic payment splits) would couple this ERC to a specific job or payment standard, limiting its applicability. ERC-2981 proved that a credential-only standard is sufficient: the combination of an unforgeable record and social/economic pressure achieves broad compliance without mandating a payment mechanism. Providers who honour referrals attract more referral traffic; those who do not face on-chain evidence of non-compliance and potential reputation damage.
+**Why no enforcement.** Any on-chain enforcement mechanism requires a specific payment interface — e.g. an ERC-20 amount to split, an ERC-8183 job ID to hook into, a particular escrow structure to intercept. Baking enforcement into this ERC would couple it to one payment ecosystem and exclude every other.
+
+Separating the credential from enforcement means a single `referralInfo` call serves all of them. A provider running an ERC-8183 hook, a provider splitting payments manually, and a provider using a payment mechanism not yet designed all read from the same credential. Enforcement, compliance, and non-adversarial behaviour are left entirely to the application layer — to hooks, wrapper contracts, reputation systems, and economic incentives that can be built on top of this primitive without being constrained by it.
+
+**Why public.** Publicity is not a compromise — it is what makes the credential useful as an enforcement substrate. A public credential makes non-compliance provable and attributable: R can produce the signed key, the job completion record, and the absence of any transfer to R. Any reputation system or dispute mechanism built on top can index this evidence without needing privileged access.
+
+**ERC-2981 precedent.** ERC-2981 for NFT royalties follows exactly this pattern: royalty terms are public, payment is voluntary, and no on-chain enforcement exists. This ERC applies the same model to agent referrals.
 
 ### ERC-8001 as the coordination layer
 
