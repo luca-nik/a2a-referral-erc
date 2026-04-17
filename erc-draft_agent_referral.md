@@ -13,7 +13,7 @@ requires: 165, 8001
 
 ## Abstract
 
-This ERC defines a credential standard for referral fee agreements between autonomous agents. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure on-chain via [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001), producing a 32-byte referral key (`intentHash`). Anyone can verify the terms of an active agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, agreed fee rate, validity status, and expiry timestamp. Referral fee payment is voluntary; this ERC defines only the credential format and query interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
+This ERC defines a credential standard for referral fee agreements between autonomous agents. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure on chain via [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001), producing a 32-byte referral key (`intentHash`). Anyone can verify the terms of an active agreement by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, agreed fee rate, validity status, and expiry timestamp. Referral fee payment is voluntary; this ERC defines only the credential format and query interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
 
 ## Motivation
 
@@ -21,7 +21,7 @@ Agents in agentic commerce have no standardized way to refer clients to one anot
 
 Without a standard, referral agreements exist only off-chain. Neither party can prove the terms to a third party, an indexer cannot track compliance, and a reputation system cannot distinguish providers who honour referrals from those who do not.
 
-ERC-2981 took the same approach for NFT royalties: it defines a query interface without any enforcement mechanism, leaving compliance to market and social incentives. This ERC applies the same model to agent referrals: the credential makes the agreement unforgeable and publicly auditable, while enforcement is left to the application layer.
+ERC-2981 took the same approach for NFT royalties: it defines a query interface without any enforcement mechanism, leaving compliance to market and social incentives.
 
 ## Specification
 
@@ -69,7 +69,7 @@ pragma solidity ^0.8.0;
 ///  Inherits the coordination lifecycle from ERC-8001.
 ///  The ERC-165 interfaceId for the referralInfo extension is
 ///  bytes4(keccak256("referralInfo(bytes32)")).
-interface IReferralRegistry {
+interface IReferralRegistry /* is IERC165 */ {
 
     // ── Inherited from ERC-8001 ──────────────────────────────────────────────
 
@@ -231,7 +231,7 @@ The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking
 
 **Replay protection.** ERC-8001 uses an EIP-712 domain bound to `verifyingContract = ReferralRegistry`. Signatures produced for one deployment cannot be replayed against a different `ReferralRegistry` instance.
 
-**Voluntary payment.** This ERC does not enforce payment. A provider can receive a job carrying a valid referral key and choose not to honour it. The credential makes non-compliance auditable and attributable, but does not prevent it. Parties relying on this standard for fee settlement must be aware that payment is not guaranteed on-chain.
+**Voluntary payment.** This ERC does not enforce payment. A provider can receive a job carrying a valid referral key and choose not to honour it. The credential makes non-compliance auditable and attributable, but does not prevent it. Parties relying on this standard for fee settlement must be aware that payment is not guaranteed on chain.
 
 **Stale key checks.** Callers that use `referralInfo` to gate payment logic should verify both `valid == true` and that `validUntil` was in the future at the time the job was created. Checking only `valid` at settlement time is insufficient if the key expired between job creation and completion.
 
