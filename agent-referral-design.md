@@ -84,7 +84,7 @@ The EIP-712 `verifyingContract` in the signing domain is `ReferralRegistry` itse
 
 After the credential is issued, the `intentHash` is the handle to look it up. Anyone — a wallet showing referral details to a user, a hook contract enforcing a payment split, an indexer building a reputation score, or an auditor checking whether P honoured an agreement — calls `referralInfo(intentHash)`.
 
-`valid` is `false` if the credential has been revoked or has expired. `validFrom` is the unix timestamp at which the credential was issued — recorded at execution time. `validUntil` is the unix timestamp at which the credential expires — taken from `ReferralTerms`. Both bounds are surfaced directly so that consumers can determine whether any given job was created during the credential's active window. This matters for evidence: R cannot claim P failed to honour a referral if the credential was not yet active, or had already expired, when the job was created.
+`valid` is `true` if and only if the credential has been issued, has not been revoked, and `validFrom <= block.timestamp < validUntil`. `validFrom` is the unix timestamp at which the credential was issued — recorded at execution time. `validUntil` is the unix timestamp at which the credential expires — taken from `ReferralTerms`. Both bounds are surfaced directly so that consumers can determine whether any given job was created during the credential's active window. This matters for evidence: R cannot claim P failed to honour a referral if the credential was not yet active, or had already expired, when the job was created.
 
 ---
 

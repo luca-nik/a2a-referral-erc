@@ -97,7 +97,7 @@ interface IReferralCredential /* is IERC165 */ {
     /// @return rate       Agreed referral fee as a fraction of type(uint16).max.
     ///                    Fee fraction = rate / 65535. All values 0–65535 are valid.
     /// @return valid      True if the credential has been issued, is not revoked,
-    ///                    and block.timestamp is strictly before validUntil.
+    ///                    and validFrom <= block.timestamp < validUntil.
     /// @return validFrom  block.timestamp at the time executeCoordination was called.
     ///                    Zero if the credential has not been issued.
     /// @return validUntil Credential expiry timestamp from ReferralTerms.
@@ -162,7 +162,9 @@ These checks ensure the registered terms faithfully reflect the actual signers a
 
 ### Execution semantics
 
-A compliant contract MUST specialize `executeCoordination` for `AGENT_REFERRAL_TYPE`. On `executeCoordination`:
+A compliant contract MUST specialize `executeCoordination` for `AGENT_REFERRAL_TYPE`. On successful execution of a referral coordination, the contract MUST create the issued referral record, emit `ReferralIssued`, and cause the underlying ERC-8001 coordination to transition to `Executed`. If the ERC-8001 execution reverts, no referral credential is issued.
+
+Concretely, execution proceeds as follows:
 
 1. The ERC-8001 base MUST verify the coordination is in `Ready` state and perform all standard pre-execution checks.
 2. The compliant contract decodes or retrieves the committed `ReferralTerms` for `intentHash`.
@@ -182,14 +184,14 @@ A referral credential for a given `intentHash` can be issued at most once. Subse
 
 `referralInfo(intentHash)` reports the state of the issued referral credential associated with `intentHash`.
 
-- If no referral credential has been issued for `intentHash`, all return values MUST be zero or `false`.
+- If no referral credential has been issued for `intentHash` — including when the underlying coordination is in `Proposed` or `Ready` state — all return values MUST be zero or `false`.
 - If a credential has been issued:
   - `provider`, `referrer`, and `rate` are the values from the issued `IssuedReferral` record;
-  - `valid` MUST be `true` if and only if the credential has not been revoked and `block.timestamp < validUntil`;
+  - `valid` MUST be `true` if and only if the credential has been issued, has not been revoked, and `validFrom <= block.timestamp < validUntil`;
   - `validFrom` MUST equal the `block.timestamp` recorded at the time `executeCoordination` was called;
   - `validUntil` is the credential expiry recorded from `ReferralTerms`.
 
-`valid` is not tied to the ERC-8001 coordination status. After execution, credential validity is determined solely by revocation status and credential expiry. A credential whose `validUntil` is already in the past at issuance time will immediately return `valid = false`.
+`valid` is not tied to the ERC-8001 coordination status. A coordination in `Proposed` or `Ready` state has no issued credential; `referralInfo` returns zero values and `false` for those states. After execution, credential validity is determined solely by revocation status and the active window `[validFrom, validUntil)`. A credential whose `validUntil` is already in the past at issuance time will immediately return `valid = false`.
 
 ### `revokeReferral` semantics
 
@@ -198,7 +200,7 @@ A referral credential for a given `intentHash` can be issued at most once. Subse
 A compliant contract MUST revert if:
 
 - no referral credential has been issued for `intentHash`;
-- `msg.sender` is neither `terms.provider` nor `terms.referrer`.
+- `msg.sender` is neither the stored `provider` nor the stored `referrer` of the issued credential associated with `intentHash`.
 
 A compliant contract MUST:
 
@@ -312,7 +314,7 @@ A reference implementation (`ReferralRegistry`) inherits from the ERC-8001 refer
 
 **`executeCoordination` override.** Retrieves the committed `ReferralTerms`, creates an `IssuedReferral` record with `validFrom = uint64(block.timestamp)` and `validUntil` from `ReferralTerms`, emits `ReferralIssued`, and delegates to the ERC-8001 base to transition the coordination to `Executed`.
 
-**`revokeReferral`.** Requires that an issued credential exists for `intentHash`. Requires `msg.sender` to be `terms.provider` or `terms.referrer`. Sets `revoked = true`. Emits `ReferralRevoked`.
+**`revokeReferral`.** Requires that an issued credential exists for `intentHash`. Requires `msg.sender` to be the stored `provider` or `referrer` of that issued credential. Sets `revoked = true`. Emits `ReferralRevoked`.
 
 **`referralInfo`.** Returns zero values if no credential has been issued for `intentHash`. Otherwise returns the stored terms and current validity derived from `revoked`, `validFrom`, and `validUntil`.
 
