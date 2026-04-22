@@ -109,7 +109,7 @@ R shares this `intentHash` with any client they introduce to P.
 
 **Expiry — two kinds.** If the coordination is not executed before `intent.expiry`, it expires under ERC-8001 and no credential is issued. If the credential has been issued, it remains valid until `ReferralTerms.validUntil` unless revoked earlier.
 
-**Revocation.** Either P or R may call `revokeReferral` at any time after issuance, provided the credential has not already been revoked. Calling `revokeReferral` on an already-revoked credential reverts. Revocation invalidates the credential (causes `valid` to return `false`) without altering the underlying ERC-8001 coordination record. P may wish to stop honouring referrals from R; R may wish to stop sending clients to a non-paying P.
+**Revocation.** Either P or R may call `revokeReferral` at any time after issuance, provided the credential has not already been revoked. Calling `revokeReferral` on an already-revoked credential reverts. Revocation is permanent; a revoked credential cannot be restored. Revocation invalidates the credential (causes `valid` to return `false`) without altering the underlying ERC-8001 coordination record. P may wish to stop honouring referrals from R; R may wish to stop sending clients to a non-paying P.
 
 **Pre-execution cancellation.** Before execution, cancellation follows the normal ERC-8001 coordination rules.
 
