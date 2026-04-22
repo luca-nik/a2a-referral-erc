@@ -164,13 +164,7 @@ These checks ensure the registered terms faithfully reflect the actual signers a
 
 A compliant contract MUST specialize `executeCoordination` for `AGENT_REFERRAL_TYPE`. On successful execution of a referral coordination, the contract MUST create the issued referral record, emit `ReferralIssued`, and cause the underlying ERC-8001 coordination to transition to `Executed`. If the ERC-8001 execution reverts, no referral credential is issued.
 
-Concretely, execution proceeds as follows:
-
-1. The ERC-8001 base MUST verify the coordination is in `Ready` state and perform all standard pre-execution checks.
-2. The compliant contract decodes or retrieves the committed `ReferralTerms` for `intentHash`.
-3. An `IssuedReferral` record is created under `intentHash` with `validFrom = uint64(block.timestamp)` and `validUntil` from `ReferralTerms`.
-4. The compliant contract emits `ReferralIssued`.
-5. The ERC-8001 base transitions the coordination status to `Executed`.
+A compliant implementation MUST ensure that, upon successful execution, the committed `ReferralTerms` are used to create the `IssuedReferral` record with `validFrom = uint64(block.timestamp)`, `ReferralIssued` is emitted, and the underlying ERC-8001 coordination is transitioned to `Executed`. If execution reverts, none of these effects persist.
 
 The `intentHash` is not created by execution — it already exists as the coordination identifier. Execution activates that identifier as an issued referral credential.
 
@@ -191,7 +185,7 @@ A referral credential for a given `intentHash` can be issued at most once. Subse
   - `validFrom` MUST equal the `block.timestamp` recorded at the time `executeCoordination` was called;
   - `validUntil` is the credential expiry recorded from `ReferralTerms`.
 
-`valid` is not tied to the ERC-8001 coordination status. A coordination in `Proposed` or `Ready` state has no issued credential; `referralInfo` returns zero values and `false` for those states. After execution, credential validity is determined solely by revocation status and the active window `[validFrom, validUntil)`. A credential whose `validUntil` is already in the past at issuance time will immediately return `valid = false`.
+An `intentHash` is treated as having an issued credential if and only if its `IssuedReferral` record has `validFrom != 0`. An uninitialized record has all fields zero, so `validFrom == 0` is the reliable sentinel for "not yet issued". `valid` is not tied to the ERC-8001 coordination status. A coordination in `Proposed` or `Ready` state has no issued credential; `referralInfo` returns zero values and `false` for those states. After execution, credential validity is determined solely by revocation status and the active window `[validFrom, validUntil)`. A credential whose `validUntil` is already in the past at issuance time will immediately return `valid = false`.
 
 ### `revokeReferral` semantics
 
@@ -200,7 +194,8 @@ A referral credential for a given `intentHash` can be issued at most once. Subse
 A compliant contract MUST revert if:
 
 - no referral credential has been issued for `intentHash`;
-- `msg.sender` is neither the stored `provider` nor the stored `referrer` of the issued credential associated with `intentHash`.
+- `msg.sender` is neither the stored `provider` nor the stored `referrer` of the issued credential associated with `intentHash`;
+- the issued credential identified by `intentHash` is already revoked.
 
 A compliant contract MUST:
 
@@ -314,9 +309,9 @@ A reference implementation (`ReferralRegistry`) inherits from the ERC-8001 refer
 
 **`executeCoordination` override.** Retrieves the committed `ReferralTerms`, creates an `IssuedReferral` record with `validFrom = uint64(block.timestamp)` and `validUntil` from `ReferralTerms`, emits `ReferralIssued`, and delegates to the ERC-8001 base to transition the coordination to `Executed`.
 
-**`revokeReferral`.** Requires that an issued credential exists for `intentHash`. Requires `msg.sender` to be the stored `provider` or `referrer` of that issued credential. Sets `revoked = true`. Emits `ReferralRevoked`.
+**`revokeReferral`.** Requires that an issued, non-revoked credential exists for `intentHash`. Requires `msg.sender` to be the stored `provider` or `referrer` of that issued credential. Sets `revoked = true`. Emits `ReferralRevoked`.
 
-**`referralInfo`.** Returns zero values if no credential has been issued for `intentHash`. Otherwise returns the stored terms and current validity derived from `revoked`, `validFrom`, and `validUntil`.
+**`referralInfo`.** Detects issuance by checking `validFrom != 0` on the stored `IssuedReferral` record. Returns zero values if the record is uninitialized. Otherwise returns the stored terms and current validity derived from `revoked`, `validFrom`, and `validUntil`.
 
 The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking, signature verification, and the coordination state machine. None of that logic is duplicated in `ReferralRegistry`.
 
@@ -342,7 +337,7 @@ The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking
 
 **Revocation.** Consumers that use `referralInfo` to gate payment logic MUST check `valid`, which accounts for both expiry and revocation. Checking only `validUntil` is insufficient if the credential has been revoked.
 
-**Stale key checks.** Callers that use `referralInfo` to gate payment logic should verify both `valid == true` and that `validUntil` was in the future at the time the job was created. Checking only `valid` at settlement time is insufficient if the credential expired between job creation and completion.
+**Active window checks.** Callers that use `referralInfo` to gate payment logic for a job or other event SHOULD verify that the relevant timestamp fell within the credential's active window `[validFrom, validUntil)`, and SHOULD NOT rely solely on whether the credential is valid at settlement time.
 
 **Voluntary payment.** This ERC does not enforce payment. A provider can receive a job carrying a valid referral credential and choose not to honour it. The credential makes non-compliance auditable and attributable, but does not prevent it.
 
