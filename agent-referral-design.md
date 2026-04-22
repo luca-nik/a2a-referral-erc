@@ -95,7 +95,7 @@ Once both P and R have signed and `executeCoordination` is called, a referral cr
 The issued credential:
 - Cryptographically proves both parties committed to the terms (both EIP-712 signatures are inside the underlying coordination)
 - Can be verified by anyone via `referralInfo`
-- Is active from `validFrom` to `validUntil`, unless revoked earlier by either party via `revokeReferral`
+- Is active within `[validFrom, validUntil)`, unless revoked earlier by either party via `revokeReferral`
 
 R shares this `intentHash` with any client they introduce to P.
 
@@ -109,7 +109,7 @@ R shares this `intentHash` with any client they introduce to P.
 
 **Expiry — two kinds.** If the coordination is not executed before `intent.expiry`, it expires under ERC-8001 and no credential is issued. If the credential has been issued, it remains valid until `ReferralTerms.validUntil` unless revoked earlier.
 
-**Revocation.** Either P or R may call `revokeReferral` at any time after issuance. Revocation invalidates the credential (causes `valid` to return `false`) without altering the underlying ERC-8001 coordination record. P may wish to stop honouring referrals from R; R may wish to stop sending clients to a non-paying P.
+**Revocation.** Either P or R may call `revokeReferral` at any time after issuance, provided the credential has not already been revoked. Calling `revokeReferral` on an already-revoked credential reverts. Revocation invalidates the credential (causes `valid` to return `false`) without altering the underlying ERC-8001 coordination record. P may wish to stop honouring referrals from R; R may wish to stop sending clients to a non-paying P.
 
 **Pre-execution cancellation.** Before execution, cancellation follows the normal ERC-8001 coordination rules.
 
