@@ -13,15 +13,13 @@ requires: 165, 8001
 
 ## Abstract
 
-This ERC defines a referral credential standard built on ERC-8001. ERC-8001 is used as the coordination substrate for proposal, countersignature, replay protection, and deterministic key derivation. For `AGENT_REFERRAL_TYPE`, successful execution of the ERC-8001 coordination issues a referral credential identified by the same `intentHash`.
-
-A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure through the ERC-8001 coordination flow. The coordination reaches `Ready` once both parties have signed. Any caller may then execute the coordination; execution issues the referral credential. The issued credential is identified by the same `intentHash` and carries its own validity window defined by `ReferralTerms.validUntil`. Anyone can verify the state of an issued credential by calling `referralInfo(intentHash)`. Either party may call `revokeReferral(intentHash, reason)` to invalidate an issued credential.
-
-Referral fee payment is voluntary; this ERC defines only the credential format, the issuance flow, and the query and revocation interface, leaving payment mechanics to implementers and market incentives — directly following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
+This ERC defines a referral credential standard for autonomous agents, built on ERC-8001. A provider (P) and a referrer (R) co-sign a `ReferralTerms` structure through the ERC-8001 coordination flow. Any caller may execute the coordination; execution issues the referral credential, identified by the same `intentHash` and carrying its own validity window. Anyone can verify an issued credential by calling `referralInfo(intentHash)`. Either party may revoke it via `revokeReferral(intentHash, reason)`. Referral fee payment is voluntary; this ERC defines only the credential format, the issuance flow, and the query and revocation interface — following the design philosophy of [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981).
 
 ## Motivation
 
 Agents in agentic commerce have no standardized way to refer clients to one another. When R introduces a client (C) to P and P is subsequently paid for the work, P owes R a referral commission. Today there is no on-chain primitive to record such an arrangement, verify that it was made, or produce evidence that it was not honoured.
+
+Agent-to-agent commerce is moving from prototype to production. Standards for agent identity (ERC-8004), agent-mediated payments (x402), and job coordination (ERC-8183) are converging on the assumption that agents will discover and transact with each other autonomously. Discovery and transaction are covered. Introduction is not. When agent R discovers a client need that agent P is better suited to serve, R has no protocol-level mechanism to capture value from the introduction — so the introduction either does not happen or happens off-chain, outside any reputation or settlement system.
 
 Without a standard, referral agreements exist only off-chain. Neither party can prove the terms to a third party, an indexer cannot track compliance, and a reputation system cannot distinguish providers who honour referrals from those who do not.
 
@@ -30,6 +28,12 @@ ERC-2981 took the same approach for NFT royalties: it defines a query interface 
 ## Specification
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119 and RFC 8174.
+
+### Lifecycle overview
+
+A referral agreement follows the ERC-8001 coordination lifecycle. Either the provider (P) or the referrer (R) acts as proposer, calling `proposeCoordination` with `ReferralTerms` encoded in `coordinationData` and signing the `AgentIntent`. The counterparty calls `acceptCoordination` to countersign. Once all required acceptances are recorded, the coordination enters `Ready` state. Any caller may then call `executeCoordination`, which issues the referral credential for `intentHash` and transitions the coordination to `Executed`.
+
+After issuance, the credential is queryable via `referralInfo(intentHash)`. The credential is active within the window `[validFrom, validUntil)`, where `validFrom` is the execution timestamp and `validUntil` is the expiry agreed in `ReferralTerms`. Either P or R may call `revokeReferral(intentHash, reason)` to invalidate the credential at any time after issuance. Revocation is permanent.
 
 ### Constants
 
@@ -90,26 +94,28 @@ pragma solidity ^0.8.0;
 ///  bytes4(keccak256("referralInfo(bytes32)")) ^ bytes4(keccak256("revokeReferral(bytes32,string)"))
 interface IReferralCredential /* is IERC165 */ {
 
-    /// @notice Return the referral terms and validity of an issued referral credential.
+    /// @notice Return the referral terms and revocation status of an issued referral credential.
     /// @param intentHash  The 32-byte coordination identifier produced by proposeCoordination.
     /// @return provider   Address of the agent performing the work (P).
     /// @return referrer   Address of the agent who made the introduction (R).
     /// @return rate       Agreed referral fee as a fraction of type(uint16).max.
     ///                    Fee fraction = rate / 65535. All values 0–65535 are valid.
-    /// @return valid      True if the credential has been issued, is not revoked,
-    ///                    and validFrom <= block.timestamp < validUntil.
     /// @return validFrom  block.timestamp at the time executeCoordination was called.
     ///                    Zero if the credential has not been issued.
     /// @return validUntil Credential expiry timestamp from ReferralTerms.
+    ///                    Zero if the credential has not been issued.
+    /// @return revoked    True if revokeReferral has been called on this credential.
+    ///                    Consumers determine current validity by checking:
+    ///                    validFrom != 0 && !revoked && validFrom <= block.timestamp < validUntil.
     function referralInfo(bytes32 intentHash)
         external view
         returns (
             address  provider,
             address  referrer,
             uint16   rate,
-            bool     valid,
             uint64   validFrom,
-            uint64   validUntil
+            uint64   validUntil,
+            bool     revoked
         );
 
     /// @notice Revoke an issued referral credential.
@@ -117,10 +123,78 @@ interface IReferralCredential /* is IERC165 */ {
     ///  Either provider or referrer may revoke at any time after issuance.
     ///  Revocation does not alter the ERC-8001 coordination status.
     /// @param intentHash  The referral credential to revoke.
-    /// @param reason      Human-readable reason for revocation.
+    /// @param reason      Human-readable reason for revocation (max 256 bytes).
     function revokeReferral(bytes32 intentHash, string calldata reason) external;
 }
 ```
+
+### Validation on `proposeCoordination`
+
+In addition to the base ERC-8001 requirements, a compliant contract MUST revert on `proposeCoordination` if:
+
+- `intent.coordinationType != AGENT_REFERRAL_TYPE`;
+- `payload.coordinationData` does not decode to a valid `ReferralTerms`;
+- `terms.provider` or `terms.referrer` is the zero address, or they are equal;
+- `intent.participants` does not equal `[terms.provider, terms.referrer]` sorted ascending;
+- `intent.agentId` is neither `terms.provider` nor `terms.referrer`;
+- `terms.validUntil == 0`.
+
+In this ERC, `intent.agentId` identifies whichever of the two bilateral parties is acting as proposer for the ERC-8001 proposal transaction.
+
+The canonical ascending ordering of `intent.participants` ensures a single hash for two distinct-but-equivalent intents and prevents proposer-controlled hash collision avoidance.
+
+Each `intentHash` identifies a single issuance. It is not a stable identifier for the ongoing referral relationship between P and R; parties that require relationship-level tracking must perform that aggregation off-chain.
+
+These checks ensure the registered terms faithfully reflect the actual signers and that no party can forge a credential on behalf of another. No constraint is placed on the relationship between `terms.validUntil` and `intent.expiry`, nor on whether `terms.validUntil` lies in the future at proposal time.
+
+### Issuance via `executeCoordination`
+
+A compliant contract MUST specialize `executeCoordination` for `AGENT_REFERRAL_TYPE`. On successful execution of a referral coordination, the contract MUST create the issued referral record, emit `ReferralIssued`, and cause the underlying ERC-8001 coordination to transition to `Executed`. If the ERC-8001 execution reverts, no referral credential is issued.
+
+The `intentHash` is not created by execution — it already exists as the coordination identifier. Execution activates that identifier as an issued referral credential.
+
+Any caller MAY call `executeCoordination` once the coordination is in `Ready` state. Execution does not change the agreed terms; it only finalizes and issues the referral credential that P and R already signed. Permissionless execution ensures liveness and prevents either party from blocking issuance after both have already consented. Execution timing is not itself part of the agreed referral terms. Parties that require tighter control over activation timing SHOULD delay acceptance rather than rely on restricting execution.
+
+> For this ERC, execution does not represent completion of referred work. It represents finalization and issuance of the referral credential agreed by the parties.
+
+A referral credential for a given `intentHash` can be issued at most once. Subsequent execution attempts MUST fail because the underlying ERC-8001 coordination is no longer in `Ready` state after successful execution. To create a new credential, the parties must create a new ERC-8001 coordination with updated or repeated `ReferralTerms`.
+
+Before execution, cancellation follows the normal ERC-8001 coordination rules without modification by this ERC.
+
+If the coordination is not accepted and executed before `intent.expiry`, it expires under ERC-8001 and no referral credential is issued. If the credential has been issued, it remains valid until `ReferralTerms.validUntil` unless revoked earlier.
+
+### Query interface
+
+`referralInfo(intentHash)` reports the state of the issued referral credential associated with `intentHash`.
+
+- If no referral credential has been issued for `intentHash` — including when the underlying coordination is in `Proposed` or `Ready` state — all return values MUST be zero or `false`.
+- If a credential has been issued:
+  - `provider`, `referrer`, and `rate` are the values from the issued `IssuedReferral` record;
+  - `validFrom` MUST equal the `block.timestamp` recorded at the time `executeCoordination` was called;
+  - `validUntil` is the credential expiry recorded from `ReferralTerms`;
+  - `revoked` MUST be `true` if and only if `revokeReferral` has been called on this credential.
+
+An `intentHash` is treated as having an issued credential if and only if its `IssuedReferral` record has `validFrom != 0`. An uninitialized record has all fields zero, so `validFrom == 0` is the reliable sentinel for "not yet issued". Consumers determine current validity by checking `validFrom != 0 && !revoked && validFrom <= block.timestamp < validUntil`. Consumers that need to verify whether a credential was valid at a historical timestamp SHOULD also index `ReferralRevoked` events to determine whether revocation occurred before or after that timestamp.
+
+### Revocation
+
+`revokeReferral(intentHash, reason)` invalidates an issued referral credential.
+
+A compliant contract MUST revert if:
+
+- no referral credential has been issued for `intentHash`;
+- `msg.sender` is neither the stored `provider` nor the stored `referrer` of the issued credential associated with `intentHash`;
+- the issued credential identified by `intentHash` is already revoked;
+- `bytes(reason).length > 256`.
+
+A compliant contract MUST:
+
+- mark the issued credential as revoked;
+- emit `ReferralRevoked`.
+
+Revocation MUST be permanent; a revoked credential cannot be restored.
+
+A compliant contract MUST NOT alter the ERC-8001 coordination status. After revocation, the credential is no longer valid.
 
 ### Events
 
@@ -145,81 +219,6 @@ event ReferralRevoked(
 
 Compliant contracts MUST emit `ReferralIssued` on successful execution and `ReferralRevoked` on successful revocation.
 
-### Validation on `proposeCoordination`
-
-In addition to the base ERC-8001 requirements, a compliant contract MUST revert on `proposeCoordination` if:
-
-- `intent.coordinationType != AGENT_REFERRAL_TYPE`;
-- `payload.coordinationData` does not decode to a valid `ReferralTerms`;
-- `terms.provider` or `terms.referrer` is the zero address, or they are equal;
-- `intent.participants` does not equal `[terms.provider, terms.referrer]` sorted ascending;
-- `intent.agentId` is neither `terms.provider` nor `terms.referrer`;
-- `terms.validUntil == 0`.
-
-In this ERC, `intent.agentId` identifies whichever of the two bilateral parties is acting as proposer for the ERC-8001 proposal transaction.
-
-These checks ensure the registered terms faithfully reflect the actual signers and that no party can forge a credential on behalf of another. No constraint is placed on the relationship between `terms.validUntil` and `intent.expiry`, nor on whether `terms.validUntil` lies in the future at proposal time.
-
-### Execution semantics
-
-A compliant contract MUST specialize `executeCoordination` for `AGENT_REFERRAL_TYPE`. On successful execution of a referral coordination, the contract MUST create the issued referral record, emit `ReferralIssued`, and cause the underlying ERC-8001 coordination to transition to `Executed`. If the ERC-8001 execution reverts, no referral credential is issued.
-
-The `intentHash` is not created by execution — it already exists as the coordination identifier. Execution activates that identifier as an issued referral credential.
-
-Any caller MAY call `executeCoordination` once the coordination is in `Ready` state. Execution does not change the agreed terms; it only finalizes and issues the referral credential that P and R already signed. Permissionless execution ensures liveness and prevents either party from blocking issuance after both have already consented. Execution timing is not itself part of the agreed referral terms. Parties that require tighter control over activation timing SHOULD delay acceptance rather than rely on restricting execution.
-
-> For this ERC, execution does not represent completion of referred work. It represents finalization and issuance of the referral credential agreed by the parties.
-
-A referral credential for a given `intentHash` can be issued at most once. Subsequent execution attempts MUST fail because the underlying ERC-8001 coordination is no longer in `Ready` state after successful execution.
-
-### `referralInfo` semantics
-
-`referralInfo(intentHash)` reports the state of the issued referral credential associated with `intentHash`.
-
-- If no referral credential has been issued for `intentHash` — including when the underlying coordination is in `Proposed` or `Ready` state — all return values MUST be zero or `false`.
-- If a credential has been issued:
-  - `provider`, `referrer`, and `rate` are the values from the issued `IssuedReferral` record;
-  - `valid` MUST be `true` if and only if the credential has been issued, has not been revoked, and `validFrom <= block.timestamp < validUntil`;
-  - `validFrom` MUST equal the `block.timestamp` recorded at the time `executeCoordination` was called;
-  - `validUntil` is the credential expiry recorded from `ReferralTerms`.
-
-An `intentHash` is treated as having an issued credential if and only if its `IssuedReferral` record has `validFrom != 0`. An uninitialized record has all fields zero, so `validFrom == 0` is the reliable sentinel for "not yet issued". `valid` is not tied to the ERC-8001 coordination status. A coordination in `Proposed` or `Ready` state has no issued credential; `referralInfo` returns zero values and `false` for those states. After execution, credential validity is determined solely by revocation status and the active window `[validFrom, validUntil)`. A credential whose `validUntil` is already in the past at issuance time will immediately return `valid = false`.
-
-### `revokeReferral` semantics
-
-`revokeReferral(intentHash, reason)` invalidates an issued referral credential.
-
-A compliant contract MUST revert if:
-
-- no referral credential has been issued for `intentHash`;
-- `msg.sender` is neither the stored `provider` nor the stored `referrer` of the issued credential associated with `intentHash`;
-- the issued credential identified by `intentHash` is already revoked.
-
-A compliant contract MUST:
-
-- mark the issued credential as revoked;
-- emit `ReferralRevoked`.
-
-Revocation MUST be permanent; a revoked credential cannot be restored.
-
-A compliant contract MUST NOT alter the ERC-8001 coordination status. After revocation, `referralInfo(intentHash).valid` returns `false`.
-
-### Credential lifecycle
-
-A referral agreement is created through the ERC-8001 coordination flow and becomes an issued referral credential only upon successful execution. Either the provider or the referrer MAY act as proposer. After all required acceptances are recorded, the coordination enters `Ready` state. Any caller MAY then execute the coordination. Execution issues the referral credential. The credential's validity window begins at execution time (`validFrom`) and ends at `ReferralTerms.validUntil`, unless revoked earlier.
-
-**Creation.** Either P or R MAY act as proposer. The proposer calls `proposeCoordination`, submitting `ReferralTerms` encoded in `coordinationData` and signing the `AgentIntent`. The counterparty calls `acceptCoordination` to countersign. Once all required acceptances are present, the coordination enters `Ready` state.
-
-**Issuance.** Any caller MAY call `executeCoordination`. Successful execution issues the referral credential for `intentHash`, recording `validFrom = block.timestamp`.
-
-**Pre-execution cancellation.** Before execution, cancellation follows the normal ERC-8001 coordination rules without modification by this ERC.
-
-**Post-execution revocation.** After issuance, either `provider` or `referrer` MAY call `revokeReferral(intentHash, reason)` to invalidate the credential. Revocation is a credential-layer action and does not alter the ERC-8001 coordination status, which remains `Executed`.
-
-**Re-issuance.** A referral credential for a given `intentHash` can be issued at most once. Subsequent execution attempts MUST fail because the underlying ERC-8001 coordination is no longer in `Ready` state after successful execution. To create a new credential, the parties must create a new ERC-8001 coordination with updated or repeated `ReferralTerms`.
-
-**Expiry — two kinds.** If the coordination is not accepted and executed before `intent.expiry`, it expires under ERC-8001 and no referral credential is issued. If the credential has been issued, it remains valid until `ReferralTerms.validUntil` unless revoked earlier.
-
 ### ERC-165 support
 
 Contracts MAY implement [ERC-165](https://eips.ethereum.org/EIPS/eip-165) to signal support for the referral extension interface defined by this ERC. The `interfaceId` for this extension is:
@@ -229,6 +228,16 @@ bytes4(keccak256("referralInfo(bytes32)")) ^ bytes4(keccak256("revokeReferral(by
 ```
 
 ERC-165 only signals that the interface surface exists. It does not prove that the behavioral rules of this ERC are followed.
+
+---
+
+## Dependencies on ERC-8001
+
+This ERC depends on specific features of [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001). It consumes: overridable `proposeCoordination`, `executeCoordination`, and `cancelCoordination` functions; the `coordinationType` field in the signed `AgentIntent` struct; the `Ready → Executed` state transition as the issuance trigger; and the `intentHash` as the coordination identifier.
+
+The override-based composition pattern used in the reference implementation requires that `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` be marked `virtual`. This is a minimal change to the ERC-8001 reference implementation. The authors of this ERC intend to coordinate with the ERC-8001 authors to propose this change through the appropriate channel.
+
+If ERC-8001 declines to add `virtual`, an alternative composition pattern exists: a wrapper contract that observes ERC-8001 events and mirrors the coordination state in its own storage. This path is viable but introduces event-ordering assumptions, requires two transactions where the override path requires one, and gives up atomic state consistency between the coordination and credential layers. The override path is strongly preferred.
 
 ---
 
@@ -242,13 +251,21 @@ Separating the credential from enforcement means a single `referralInfo` call se
 
 **Why public.** Publicity is not a compromise — it is what makes the credential useful as an enforcement substrate. A public credential makes non-compliance provable and attributable: R can produce the issued credential, the job completion record, and the absence of any transfer to R. Any reputation system or dispute mechanism built on top can index this evidence without needing privileged access.
 
-**ERC-2981 precedent.** ERC-2981 for NFT royalties follows exactly this pattern: royalty terms are public, payment is voluntary, and no on-chain enforcement exists. This ERC applies the same model to agent referrals.
+### Why credential-only is not ERC-2981's fate
+
+ERC-2981 is widely regarded as having failed in practice: NFT marketplaces routinely route around the royalty interface, and royalty enforcement has collapsed in secondary markets.
+
+The collapse was produced by specific conditions: largely one-shot interactions between anonymous counterparties, marketplaces with direct competitive incentives to undercut royalty fees, and no on-chain reputation cost to non-compliance.
+
+Agent-to-agent commerce operates under different conditions. Persistent on-chain agent identity (ERC-8004) makes non-compliance attributable. Repeated interactions create ongoing economic incentives for honouring agreements. Programmable reputation systems can coordinate deny-lists across referrer networks. And the primary enforcement lever is held by the referrer — the party who controls the flow of introductions — rather than by a marketplace that profits from undercutting.
+
+Whether voluntary referral payment holds up in deployment is not provable from the design. It will be answered by usage.
 
 ### ERC-8001 as the coordination layer
 
-ERC-8001 provides exactly the primitives needed: EIP-712 typed signatures from both parties, monotonic nonces for replay prevention, and a deterministic `intentHash`. Using ERC-8001 avoids reinventing bilateral signing and gives the credential a well-defined issuance path.
+ERC-8001 provides the primitives this ERC needs: EIP-712 typed signatures from both parties, monotonic nonces for replay prevention, and a deterministic `intentHash`. Using ERC-8001 avoids reinventing bilateral signing and gives the credential a well-defined issuance path.
 
-This ERC defines a referral credential standard built on ERC-8001. ERC-8001 is used as the coordination substrate for proposal, countersignature, replay protection, and deterministic key derivation. For `AGENT_REFERRAL_TYPE`, successful execution of the ERC-8001 coordination issues a referral credential identified by the same `intentHash`.
+Contract-agent signers are supported via [EIP-1271](https://eips.ethereum.org/EIPS/eip-1271). When ERC-8001 provides EIP-1271-compatible signature verification, this support is inherited automatically by compliant contracts.
 
 ### Two-phase model: coordination and credential
 
@@ -257,7 +274,7 @@ ERC-8001 defines the coordination lifecycle (`Proposed → Ready → Executed`).
 - **Coordination phase** (`Proposed → Ready`): The parties sign and commit to the `ReferralTerms`. The referral credential does not yet exist.
 - **Issuance phase** (`Ready → Executed`): `executeCoordination` is called. The credential is issued and becomes queryable via `referralInfo`.
 
-The credential is a derived artifact of the coordination, not the coordination itself. This separation has two important consequences. First, the credential cannot be queried before execution, preventing premature use of an agreement that was proposed but never finalised. Second, the ERC-8001 coordination transitions through its complete natural lifecycle, including `Executed`, rather than being held artificially in `Ready`.
+The credential is a derived artifact of the coordination, not the coordination itself. The credential cannot be queried before execution, preventing premature use of an agreement that was proposed but never finalised. The ERC-8001 coordination transitions through its complete natural lifecycle, including `Executed`, rather than being held artificially in `Ready`.
 
 ### Permissionless execution
 
@@ -270,6 +287,18 @@ Parties that wish to control the activation moment have a natural mechanism: the
 `AgentIntent.expiry` (the coordination deadline) and `ReferralTerms.validUntil` (the credential validity window) are independent. A short coordination window paired with a long-lived credential is entirely reasonable, as is the reverse. There is no imposed relationship between the two; the parties agree on both independently.
 
 This ERC does not require `validUntil` to be in the future at proposal or execution time. A credential whose `validUntil` is already in the past will simply never be valid. Parties are responsible for choosing economically meaningful terms.
+
+### Rate encoding
+
+Every `uint16` value for `referralRate` is valid: `0` = 0%, `65535` = 100%. The alternative is basis points (`10000 = 100%`), which is the DeFi convention but introduces a validation requirement (`referralRate <= 10000`) and a `require` revert path in `proposeCoordination`.
+
+Full-range encoding eliminates a class of validation errors and simplifies the implementation. Granularity is 1/65535 ≈ 0.00153%, which on a 100 ETH payment represents ≈ 0.00153 ETH — sufficient for plausible referral economics.
+
+### No revocation cooldown
+
+A foreseeable failure mode is: P revokes after a referred job arrives but before settlement, denying R the fee for work already performed.
+
+A cooldown or notice period would couple credential mechanics to settlement timing. The credential-only design explicitly rejects coupling to settlement — this is the same argument used to reject built-in payment. Cooldowns are an application-layer concern: a wrapper contract, hook, or escrow can enforce one without modification to the standard. The standard ships without a cooldown for the same reason it ships without payment: keep the credential layer minimal and let composition handle policy.
 
 ### `validFrom` in `referralInfo`
 
@@ -293,6 +322,10 @@ Placing a typed label in `AgentIntent.coordinationType` — a field explicitly r
 
 ERC-8001 emits generic lifecycle events (`CoordinationProposed`, `CoordinationAccepted`, `CoordinationExecuted`). These are useful for tracking the coordination lifecycle but are too generic for referral-native indexing. `ReferralIssued` and `ReferralRevoked` make the credential layer directly discoverable to indexers, wallets, auditors, and reputation systems without requiring interpretation of ERC-8001 coordination events.
 
+### Enumeration
+
+`referralInfo` is keyed by `intentHash`. There is no standard mechanism to enumerate all credentials for a given provider or referrer. Consumers that need credential discovery MUST track `ReferralIssued` and `ReferralRevoked` events from genesis. Enumeration is an indexer concern and is deliberately excluded from the on-chain interface to minimize gas costs and contract complexity.
+
 ---
 
 ## Backwards Compatibility
@@ -309,15 +342,13 @@ A reference implementation (`ReferralRegistry`) inherits from the ERC-8001 refer
 
 **`executeCoordination` override.** Retrieves the committed `ReferralTerms`, creates an `IssuedReferral` record with `validFrom = uint64(block.timestamp)` and `validUntil` from `ReferralTerms`, emits `ReferralIssued`, and invokes the ERC-8001 base implementation to transition the coordination to `Executed`.
 
-**`revokeReferral`.** Requires that an issued, non-revoked credential exists for `intentHash`. Requires `msg.sender` to be the stored `provider` or `referrer` of that issued credential. Sets `revoked = true`. Emits `ReferralRevoked`.
+**`revokeReferral`.** Requires that an issued, non-revoked credential exists for `intentHash`. Requires `msg.sender` to be the stored `provider` or `referrer` of that issued credential. Requires `bytes(reason).length <= 256`. Sets `revoked = true`. Emits `ReferralRevoked`.
 
-**`referralInfo`.** Detects issuance by checking `validFrom != 0` on the stored `IssuedReferral` record. Returns zero values if the record is uninitialized. Otherwise returns the stored terms and current validity derived from `revoked`, `validFrom`, and `validUntil`.
+**`referralInfo`.** Detects issuance by checking `validFrom != 0` on the stored `IssuedReferral` record. Returns zero values if the record is uninitialized. Otherwise returns the stored terms and revocation status.
 
 The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking, signature verification, and the coordination state machine. None of that logic is duplicated in `ReferralRegistry`.
 
 **Storage.** `_issuedReferrals` maps `intentHash → IssuedReferral`. The write happens inside the `executeCoordination` override in the same transaction as the ERC-8001 base state transition to `Executed`. If the base reverts, `_issuedReferrals` is never touched. `referralInfo` performs a single storage read from `_issuedReferrals` with no decoding overhead at query time.
-
-**Required change to ERC-8001 reference.** `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` must be marked `virtual` for `ReferralRegistry` to override them. This is a minimal change to the base and is proposed as a suggested improvement to ERC-8001.
 
 ---
 
@@ -331,13 +362,13 @@ The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking
 
 **Two distinct expiries.** Coordination expiry (`intent.expiry`) and credential expiry (`ReferralTerms.validUntil`) are independent. Consumers MUST use `referralInfo(...).validUntil` for credential validity checks and MUST NOT treat coordination expiry as a proxy for credential expiry.
 
-**Credential active window.** Consumers that need to verify whether an event occurred during the credential's active window MUST check against both `validFrom` and `validUntil` returned by `referralInfo`. Checking only `validUntil` is insufficient; a credential may have been issued after the event in question.
+**Credential active window.** Consumers that need to verify whether an event occurred during the credential's active window MUST check against both `validFrom` and `validUntil` returned by `referralInfo`, and MUST check `revoked`. A credential is currently active if and only if `validFrom != 0 && !revoked && validFrom <= block.timestamp < validUntil`.
 
 **Expired-at-issuance credentials.** This ERC does not require `validUntil` to be in the future at proposal or execution time. A credential whose `validUntil` is already in the past will simply never be valid. Parties are responsible for choosing economically meaningful terms.
 
-**Revocation.** Consumers that use `referralInfo` to gate payment logic MUST check `valid`, which accounts for both expiry and revocation. Checking only `validUntil` is insufficient if the credential has been revoked.
+**Revocation.** Consumers that use `referralInfo` to gate payment logic MUST check `revoked` as well as the active window `[validFrom, validUntil)`. A revoked credential must not be honoured regardless of the active window.
 
-**Active window checks.** Callers that use `referralInfo` to gate payment logic for a job or other event SHOULD verify that the relevant timestamp fell within the credential's active window `[validFrom, validUntil)`, and SHOULD NOT rely solely on whether the credential is valid at settlement time.
+**Active window checks.** Callers that use `referralInfo` to gate payment logic for a job or other event SHOULD verify that the relevant timestamp fell within the credential's active window `[validFrom, validUntil)`, and SHOULD NOT rely solely on whether the credential is active at settlement time.
 
 **Voluntary payment.** This ERC does not enforce payment. A provider can receive a job carrying a valid referral credential and choose not to honour it. The credential makes non-compliance auditable and attributable, but does not prevent it.
 
