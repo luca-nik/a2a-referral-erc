@@ -14,7 +14,7 @@ This ERC defines a referral credential standard built on [ERC-8001](https://eips
 
 R shares the `intentHash` with any client (C) they introduce to P. Any contract, wallet, or indexer can verify the state of the issued credential by calling `referralInfo(intentHash)`, which returns the provider address, referrer address, fee rate, activation timestamp, expiry, and revocation status. Either party may call `revokeReferral(intentHash, reason)` to invalidate an issued credential.
 
-Referral fee payment is voluntary. This ERC defines only the credential format, the issuance flow, and the query and revocation interface, leaving payment mechanics to implementers and market incentives — directly inspired by [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
+Referral fee payment is voluntary. This ERC defines only the credential format, the issuance flow, and the query and revocation interface, leaving payment mechanics to implementers and market incentives. Inspired by [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981) for NFT royalties.
 
 ---
 
