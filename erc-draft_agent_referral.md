@@ -2,12 +2,12 @@
 eip: TBD
 title: Agent Referral
 description: A credential standard for referral fee agreements between autonomous agents, built on ERC-8001.
-author: CryptoEconLab (@luca-nik)
+author: CryptoEconLab (@CELtd)
 discussions-to: TBD
 status: Draft
 type: Standards Track
 category: ERC
-created: 2026-04-15
+created: 2026-05-01
 requires: 165, 8001
 ---
 
