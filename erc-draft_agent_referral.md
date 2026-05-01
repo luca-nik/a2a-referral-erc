@@ -320,7 +320,7 @@ P may advertise their mechanism — and their default referral rate — in their
 
 ## Backwards Compatibility
 
-This ERC introduces a new contract interface and does not modify any existing standard. The reference implementation uses an override-based composition pattern that requires `AgentCoordination.proposeCoordination`, `cancelCoordination`, and `executeCoordination` to be marked `virtual` in the ERC-8001 reference implementation. Adding `virtual` is a non-breaking change to existing ERC-8001 deployments. The authors intend to coordinate this change with the ERC-8001 maintainers.
+This ERC introduces a new contract interface and does not modify any existing standard. Compliant implementations may compose with ERC-8001 via inheritance (requiring virtual on the base coordination functions) or via a standalone wrapper that observes ERC-8001 events. The reference implementation uses the inheritance pattern, which requires `AgentCoordination.proposeCoordination`, `cancelCoordination`, and `executeCoordination` to be marked virtual in the ERC-8001 reference implementation. Adding virtual is a non-breaking change to existing ERC-8001 deployments.
 
 ---
 
