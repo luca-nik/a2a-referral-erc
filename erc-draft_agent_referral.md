@@ -320,7 +320,7 @@ ERC-8001 emits generic lifecycle events (`CoordinationProposed`, `CoordinationAc
 
 ## Backwards Compatibility
 
-This ERC introduces a new contract interface and does not modify any existing standard.
+This ERC introduces a new contract interface and does not modify any existing standard. The reference implementation uses an override-based composition pattern that requires `AgentCoordination.proposeCoordination`, `cancelCoordination`, and `executeCoordination` to be marked `virtual` in the ERC-8001 reference implementation. Adding `virtual` is a non-breaking change to existing ERC-8001 deployments. The authors intend to coordinate this change with the ERC-8001 maintainers.
 
 ---
 
@@ -340,7 +340,7 @@ The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking
 
 **Storage.** `_issuedReferrals` maps `intentHash → IssuedReferral`. The write happens inside the `executeCoordination` override in the same transaction as the ERC-8001 base state transition to `Executed`. If the base reverts, `_issuedReferrals` is never touched. `referralInfo` performs a single storage read from `_issuedReferrals` with no decoding overhead at query time.
 
-**Required change to ERC-8001 reference.** The override-based composition pattern requires that `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` be marked `virtual`. This is a minimal change to the ERC-8001 reference implementation. The authors of this ERC intend to coordinate with the ERC-8001 authors to propose this change through the appropriate channel. If ERC-8001 declines to add `virtual`, an alternative composition pattern exists: a wrapper contract that observes ERC-8001 events and mirrors the coordination state in its own storage. This path is viable but introduces event-ordering assumptions, requires two transactions where the override path requires one, and gives up atomic state consistency between the coordination and credential layers. The override path is strongly preferred.
+**Required change to ERC-8001 reference.** If ERC-8001 does not mark the three coordination functions `virtual`, an alternative composition pattern exists: a wrapper contract that observes ERC-8001 events and mirrors the coordination state in its own storage. This path is viable but introduces event-ordering assumptions, requires two transactions where the override path requires one, and gives up atomic state consistency between the coordination and credential layers. The override path is strongly preferred.
 
 ---
 
