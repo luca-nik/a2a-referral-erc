@@ -241,16 +241,6 @@ Separating the credential from enforcement means a single `referralInfo` call se
 
 **Why public.** Publicity is not a compromise — it is what makes the credential useful as an enforcement substrate. A public credential makes non-compliance provable and attributable: R can produce the issued credential, the job completion record, and the absence of any transfer to R. Any reputation system or dispute mechanism built on top can index this evidence without needing privileged access.
 
-### Why credential-only is not ERC-2981's fate
-
-ERC-2981 is widely regarded as having failed in practice: NFT marketplaces routinely route around the royalty interface, and royalty enforcement has collapsed in secondary markets.
-
-The collapse was produced by specific conditions: largely one-shot interactions between anonymous counterparties, marketplaces with direct competitive incentives to undercut royalty fees, and no on-chain reputation cost to non-compliance.
-
-Agent-to-agent commerce operates under different conditions. Persistent on-chain agent identity (ERC-8004) makes non-compliance attributable. Repeated interactions create ongoing economic incentives for honouring agreements. Programmable reputation systems can coordinate deny-lists across referrer networks. And the primary enforcement lever is held by the referrer — the party who controls the flow of introductions — rather than by a marketplace that profits from undercutting.
-
-Whether voluntary referral payment holds up in deployment is not provable from the design. It will be answered by usage.
-
 ### ERC-8001 as the coordination layer
 
 ERC-8001 provides the primitives this ERC needs: EIP-712 typed signatures from both parties, monotonic nonces for replay prevention, and a deterministic `intentHash`. Using ERC-8001 avoids reinventing bilateral signing and gives the credential a well-defined issuance path.
