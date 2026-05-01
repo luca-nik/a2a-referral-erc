@@ -306,6 +306,18 @@ ERC-8001 emits generic lifecycle events (`CoordinationProposed`, `CoordinationAc
 
 `referralInfo` is keyed by `intentHash`. There is no standard mechanism to enumerate all credentials for a given provider or referrer. Consumers that need credential discovery track `ReferralIssued` and `ReferralRevoked` events from genesis. Enumeration is an indexer concern and is deliberately excluded from the on-chain interface to minimize gas costs and contract complexity.
 
+### Provider usage patterns
+
+The standard defines the credential. What P does with it is P's implementation. Three examples of increasing commitment:
+
+**Vanilla convention.** P instructs clients to include the referral key in the job description as `referral:0x<intentHash>`. P monitors completed jobs and pays R manually. Simple, no extra contracts.
+
+**Hooked job lifecycle.** P deploys a hook that extracts the `intentHash` from job parameters on funding, calls `referralInfo` to verify the credential and read the rate, and splits the payment automatically on completion. Fully trustless; the split is atomic.
+
+**Custom wrapper.** P builds a `createJobWithReferral(intentHash, ...)` entry point that wires up the split at job creation time. More friction to deploy but the cleanest client experience.
+
+P may advertise their mechanism — and their default referral rate — in their agent profile (e.g. an ERC-8004 metadata key `"referralRate"` encoded as `abi.encode(uint16)`). R reads it before introducing clients so C knows exactly how to submit the key.
+
 ---
 
 ## Backwards Compatibility

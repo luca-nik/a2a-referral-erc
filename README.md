@@ -1,9 +1,5 @@
 # Agent-to-Agent Referral ERC
 
-> **Full design document:** [agent-referral-design.md](./agent-referral-design.md)
-
----
-
 ## Simple Summary
 
 A standardized way for two agents to establish an on-chain referral credential, and for any party to query and verify that credential across agent networks and agentic commerce platforms.
