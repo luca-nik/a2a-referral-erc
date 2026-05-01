@@ -80,7 +80,7 @@ interface IReferralCredential {
 
 The EIP-712 `verifyingContract` in the signing domain is `ReferralRegistry` itself. This means P's and R's signatures are cryptographically bound to this specific contract address — the same signatures cannot be replayed against a different deployment.
 
-Contract-agent signers are supported via [EIP-1271](https://eips.ethereum.org/EIPS/eip-1271). When ERC-8001 provides EIP-1271-compatible signature verification, this support is inherited automatically by `ReferralRegistry`.
+Contract-agent signers are supported via [ERC-1271](https://eips.ethereum.org/EIPS/eip-1271). When ERC-8001 provides ERC-1271-compatible signature verification, this support is inherited automatically by `ReferralRegistry`.
 
 ### The query interface
 

@@ -2,7 +2,7 @@
 eip: TBD
 title: Agent Referral
 description: A credential standard for referral fee agreements between autonomous agents, built on ERC-8001.
-author: CryptoEconLab
+author: CryptoEconLab (@luca-nik)
 discussions-to: TBD
 status: Draft
 type: Standards Track
@@ -231,16 +231,6 @@ ERC-165 only signals that the interface surface exists. It does not prove that t
 
 ---
 
-## Dependencies on ERC-8001
-
-This ERC depends on specific features of [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001). It consumes: overridable `proposeCoordination`, `executeCoordination`, and `cancelCoordination` functions; the `coordinationType` field in the signed `AgentIntent` struct; the `Ready → Executed` state transition as the issuance trigger; and the `intentHash` as the coordination identifier.
-
-The override-based composition pattern used in the reference implementation requires that `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` be marked `virtual`. This is a minimal change to the ERC-8001 reference implementation.
-
-If ERC-8001 declines to add `virtual`, an alternative composition pattern exists: a wrapper contract that observes ERC-8001 events and mirrors the coordination state in its own storage. This path is viable but introduces event-ordering assumptions, requires two transactions where the override path requires one, and gives up atomic state consistency between the coordination and credential layers. The override path is strongly preferred.
-
----
-
 ## Rationale
 
 ### Credential-only design
@@ -265,7 +255,7 @@ Whether voluntary referral payment holds up in deployment is not provable from t
 
 ERC-8001 provides the primitives this ERC needs: EIP-712 typed signatures from both parties, monotonic nonces for replay prevention, and a deterministic `intentHash`. Using ERC-8001 avoids reinventing bilateral signing and gives the credential a well-defined issuance path.
 
-Contract-agent signers are supported via [EIP-1271](https://eips.ethereum.org/EIPS/eip-1271). When ERC-8001 provides EIP-1271-compatible signature verification, this support is inherited automatically by compliant contracts.
+Contract-agent signers are supported via [ERC-1271](https://eips.ethereum.org/EIPS/eip-1271). When ERC-8001 provides ERC-1271-compatible signature verification, this support is inherited automatically by compliant contracts.
 
 ### Two-phase model: coordination and credential
 
@@ -324,7 +314,7 @@ ERC-8001 emits generic lifecycle events (`CoordinationProposed`, `CoordinationAc
 
 ### Enumeration
 
-`referralInfo` is keyed by `intentHash`. There is no standard mechanism to enumerate all credentials for a given provider or referrer. Consumers that need credential discovery MUST track `ReferralIssued` and `ReferralRevoked` events from genesis. Enumeration is an indexer concern and is deliberately excluded from the on-chain interface to minimize gas costs and contract complexity.
+`referralInfo` is keyed by `intentHash`. There is no standard mechanism to enumerate all credentials for a given provider or referrer. Consumers that need credential discovery track `ReferralIssued` and `ReferralRevoked` events from genesis. Enumeration is an indexer concern and is deliberately excluded from the on-chain interface to minimize gas costs and contract complexity.
 
 ---
 
@@ -350,6 +340,8 @@ The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking
 
 **Storage.** `_issuedReferrals` maps `intentHash → IssuedReferral`. The write happens inside the `executeCoordination` override in the same transaction as the ERC-8001 base state transition to `Executed`. If the base reverts, `_issuedReferrals` is never touched. `referralInfo` performs a single storage read from `_issuedReferrals` with no decoding overhead at query time.
 
+**Required change to ERC-8001 reference.** The override-based composition pattern requires that `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` be marked `virtual`. This is a minimal change to the ERC-8001 reference implementation. The authors of this ERC intend to coordinate with the ERC-8001 authors to propose this change through the appropriate channel. If ERC-8001 declines to add `virtual`, an alternative composition pattern exists: a wrapper contract that observes ERC-8001 events and mirrors the coordination state in its own storage. This path is viable but introduces event-ordering assumptions, requires two transactions where the override path requires one, and gives up atomic state consistency between the coordination and credential layers. The override path is strongly preferred.
+
 ---
 
 ## Security Considerations
@@ -358,17 +350,17 @@ The ERC-8001 base handles EIP-712 domain binding, struct hashing, nonce tracking
 
 **Replay protection.** ERC-8001 uses an EIP-712 domain bound to `verifyingContract`. Signatures produced for one deployment cannot be replayed against a different deployment.
 
-**No credential before execution.** The credential does not exist until `executeCoordination` succeeds. `referralInfo` returns zero values for coordinations in `Proposed` or `Ready` state. Downstream consumers MUST check `referralInfo` and MUST NOT infer credential existence from ERC-8001 coordination status alone.
+**No credential before execution.** The credential does not exist until `executeCoordination` succeeds. `referralInfo` returns zero values for coordinations in `Proposed` or `Ready` state. Downstream consumers that rely on ERC-8001 coordination status instead of calling `referralInfo` risk treating a non-existent credential as valid.
 
-**Two distinct expiries.** Coordination expiry (`intent.expiry`) and credential expiry (`ReferralTerms.validUntil`) are independent. Consumers MUST use `referralInfo(...).validUntil` for credential validity checks and MUST NOT treat coordination expiry as a proxy for credential expiry.
+**Two distinct expiries.** Coordination expiry (`intent.expiry`) and credential expiry (`ReferralTerms.validUntil`) are independent. Using coordination expiry as a proxy for credential expiry produces incorrect results; `referralInfo(...).validUntil` is the authoritative source for credential validity.
 
-**Credential active window.** Consumers that need to verify whether an event occurred during the credential's active window MUST check against both `validFrom` and `validUntil` returned by `referralInfo`, and MUST check `revoked`. A credential is currently active if and only if `validFrom != 0 && !revoked && validFrom <= block.timestamp < validUntil`.
+**Credential active window.** Checking only `validUntil` without also checking `validFrom` and `revoked` leads to false positives — the credential may not have been active, or may have been revoked, at the relevant time. A credential is currently active if and only if `validFrom != 0 && !revoked && validFrom <= block.timestamp < validUntil`.
 
 **Expired-at-issuance credentials.** This ERC does not require `validUntil` to be in the future at proposal or execution time. A credential whose `validUntil` is already in the past will simply never be valid. Parties are responsible for choosing economically meaningful terms.
 
-**Revocation.** Consumers that use `referralInfo` to gate payment logic MUST check `revoked` as well as the active window `[validFrom, validUntil)`. A revoked credential must not be honoured regardless of the active window.
+**Revocation.** Checking only the active window without checking `revoked` causes a revoked credential to be honoured. A revoked credential is invalid regardless of the active window.
 
-**Active window checks.** Callers that use `referralInfo` to gate payment logic for a job or other event SHOULD verify that the relevant timestamp fell within the credential's active window `[validFrom, validUntil)`, and SHOULD NOT rely solely on whether the credential is active at settlement time.
+**Active window checks.** Relying on credential validity at settlement time, rather than at the time the relevant job or event occurred, produces incorrect results when the credential was activated or revoked between the two timestamps.
 
 **Voluntary payment.** This ERC does not enforce payment. A provider can receive a job carrying a valid referral credential and choose not to honour it. The credential makes non-compliance auditable and attributable, but does not prevent it.
 
