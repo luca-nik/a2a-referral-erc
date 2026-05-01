@@ -235,7 +235,7 @@ ERC-165 only signals that the interface surface exists. It does not prove that t
 
 This ERC depends on specific features of [ERC-8001](https://eips.ethereum.org/EIPS/eip-8001). It consumes: overridable `proposeCoordination`, `executeCoordination`, and `cancelCoordination` functions; the `coordinationType` field in the signed `AgentIntent` struct; the `Ready → Executed` state transition as the issuance trigger; and the `intentHash` as the coordination identifier.
 
-The override-based composition pattern used in the reference implementation requires that `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` be marked `virtual`. This is a minimal change to the ERC-8001 reference implementation. The authors of this ERC intend to coordinate with the ERC-8001 authors to propose this change through the appropriate channel.
+The override-based composition pattern used in the reference implementation requires that `AgentCoordination.proposeCoordination`, `AgentCoordination.cancelCoordination`, and `AgentCoordination.executeCoordination` be marked `virtual`. This is a minimal change to the ERC-8001 reference implementation.
 
 If ERC-8001 declines to add `virtual`, an alternative composition pattern exists: a wrapper contract that observes ERC-8001 events and mirrors the coordination state in its own storage. This path is viable but introduces event-ordering assumptions, requires two transactions where the override path requires one, and gives up atomic state consistency between the coordination and credential layers. The override path is strongly preferred.
 
